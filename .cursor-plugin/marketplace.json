@@ -1,0 +1,22 @@
+{
+  "name": "kubuszok",
+  "owner": {
+    "name": "Mateusz Kubuszok",
+    "url": "https://github.com/kubuszok"
+  },
+  "metadata": {
+    "description": "Agent skills for using kubuszok's Scala libraries (Hearth, Kindlings, ...) - one plugin per library."
+  },
+  "plugins": [
+    {
+      "name": "hearth",
+      "source": "./plugins/hearth",
+      "description": "Skills for writing Scala 2.13/3 macros with Hearth: cross-quotes, MIO, CaseClass/Enum, type class derivation, standard extensions, debugging."
+    },
+    {
+      "name": "kindlings",
+      "source": "./plugins/kindlings",
+      "description": "Skills for using Kindlings: type class derivation for circe, jsoniter-scala, cats, avro, pureconfig, tapir, yaml, xml, scalacheck and more, plus di, mock, optics and parser modules."
+    }
+  ]
+}

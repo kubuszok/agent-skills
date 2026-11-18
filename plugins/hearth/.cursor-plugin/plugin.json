@@ -1,0 +1,18 @@
+{
+  "name": "hearth",
+  "version": "0.4.5",
+  "description": "Skills for writing Scala 2.13/3 macros with Hearth: cross-quotes, MIO, CaseClass/Enum, type class derivation, standard extensions, debugging.",
+  "author": {
+    "name": "Mateusz Kubuszok",
+    "url": "https://github.com/kubuszok"
+  },
+  "homepage": "https://scala-hearth.readthedocs.io/",
+  "repository": "https://github.com/kubuszok/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "scala",
+    "macros",
+    "metaprogramming",
+    "hearth"
+  ]
+}

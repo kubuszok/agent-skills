@@ -1,0 +1,35 @@
+name: Validate
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate marketplace and skills
+        run: |
+          pip install pyyaml
+          python3 scripts/validate.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check that npx skills discovers every skill
+        run: |
+          npx --yes skills add . --list 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > skills-list.txt
+          cat skills-list.txt
+          missing=0
+          for f in plugins/*/skills/*/SKILL.md; do
+            name=$(basename "$(dirname "$f")")
+            grep -Eq "^[^a-z]*${name}\$" skills-list.txt || { echo "npx skills did not discover $name"; missing=1; }
+          done
+          exit $missing

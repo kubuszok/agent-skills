@@ -1,0 +1,19 @@
+{
+  "name": "kindlings",
+  "version": "0.4.0",
+  "description": "Skills for using Kindlings: configuring and troubleshooting its type class derivations (circe, jsoniter-scala, cats, avro, pureconfig, tapir, ...), migrating from upstream derivation, and its di/mock/optics/parser modules.",
+  "author": {
+    "name": "Mateusz Kubuszok",
+    "url": "https://github.com/kubuszok"
+  },
+  "homepage": "https://kindlings.readthedocs.io/",
+  "repository": "https://github.com/kubuszok/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "scala",
+    "kindlings",
+    "type-class-derivation",
+    "circe",
+    "jsoniter"
+  ]
+}
