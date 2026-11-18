@@ -22,6 +22,21 @@
       "name": "sbt-kubuszok",
       "source": "./plugins/sbt-kubuszok",
       "description": "Skills for adopting the sbt-kubuszok sbt plugin: what it already configures (git versioning, Maven Central publishing, ci-release, scalafmt), build layout with projectType/Aliases/DevProperties, GitHub Actions CI and release workflows, and troubleshooting failed publishes."
+    },
+    {
+      "name": "baltic-porter",
+      "source": "./plugins/baltic-porter",
+      "description": "Skills and guard hooks for repositories that generate Scala 3 sources from Java with Baltic Porter: configuring and customizing a port, reading what a run could not handle, tracing a generated defect to its rule, bumping the engine pin, the local gate before a push, cross-platform rows and CI caching."
+    },
+    {
+      "name": "multiarch-scala",
+      "source": "./plugins/multiarch-scala",
+      "description": "Skills for using multiarch-scala: cross-platform JVM/Scala.js/Scala Native builds, native library provider JARs, NativeLibLoader, Panama FFM, zig cross-linking, JVM release packaging, Android APKs without Gradle, cross-platform resources and ServiceLoader."
+    },
+    {
+      "name": "re-scale",
+      "source": "./plugins/re-scale",
+      "description": "Skills, agents and hooks for porting libraries to Scala 3 with the re-scale CLI: conversion guides (Java, Dart, Ruby), shortcut and stub scans, file-header metadata, migration/audit/issue tracking, and the implement-audit loop."
     }
   ]
 }

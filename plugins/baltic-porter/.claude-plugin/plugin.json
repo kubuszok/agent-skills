@@ -1,0 +1,21 @@
+{
+  "name": "baltic-porter",
+  "version": "0.2.0",
+  "description": "Skills and guard hooks for repositories that generate Scala 3 sources from Java with the Baltic Porter engine (sge, ssg, lls): configuring and customizing a port, reading what a run could not handle, tracing a generated defect to the rule that produced it, bumping the engine pin, the local gate before a push, cross-platform rows, CI and caching, and driving sbt 2 with --client.",
+  "author": {
+    "name": "Mateusz Kubuszok",
+    "url": "https://github.com/kubuszok"
+  },
+  "homepage": "https://github.com/kubuszok/balticporter",
+  "repository": "https://github.com/kubuszok/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "scala",
+    "java",
+    "porting",
+    "code-generation",
+    "sbt",
+    "scala-js",
+    "scala-native"
+  ]
+}

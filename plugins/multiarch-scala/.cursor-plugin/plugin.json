@@ -1,0 +1,21 @@
+{
+  "name": "multiarch-scala",
+  "version": "0.4.0",
+  "description": "Skills for using multiarch-scala: cross-platform Scala builds (JVM, Scala.js, Scala Native) with sbt-projectmatrix, native library provider JARs, NativeLibLoader, Panama FFM, zig cross-linking, JVM release packaging, Android APKs without Gradle, and cross-platform resources and ServiceLoader.",
+  "author": {
+    "name": "Mateusz Kubuszok",
+    "url": "https://github.com/kubuszok"
+  },
+  "homepage": "https://github.com/kubuszok/multiarch-scala",
+  "repository": "https://github.com/kubuszok/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "scala",
+    "scala-native",
+    "scala-js",
+    "sbt",
+    "native-libraries",
+    "panama",
+    "android"
+  ]
+}
