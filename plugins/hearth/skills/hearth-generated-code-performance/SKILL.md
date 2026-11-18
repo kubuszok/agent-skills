@@ -62,39 +62,18 @@ configExpr.semiEval match {               // Either[NonEmptyVector[String], Conf
 
 ## 5. Keep generated methods small and linear
 
-HotSpot never JIT-compiles a method larger than **8000 bytes** of bytecode (`HugeMethodLimit`); it runs interpreted, typically several times slower. The hard limit is 64 KB ("Method too large"). Both are easy to cross with wide types, because these shapes grow **quadratically** with the number of fields:
+HotSpot never JIT-compiles a method over **8000 bytes** of bytecode; the hard limit is 64 KB ("Method too large"). Wide case classes cross both when the generated code grows faster than linearly with the number of fields. Rules:
 
-- **Control flow inside an argument list.** `new A(f0, if (has1) try d1 catch { case NonFatal(_) => dflt1 } else dflt1, ...)`: a `try` inside an argument list makes the compiler spill every argument evaluated before it, and every branch nested in an expression needs a stack-map frame listing all live values. The same goes for `if` inside `x :: acc`, `Map(k -> (if ...))`, or a builder call. (Kindlings 0.4.0: an Avro decoder with 88 defaulted fields failed with "Method too large"; on Scala 2.13 a 100-field decoder had a 1.1 MB StackMapTable.)
-- **Nesting one level per field.** `r0.flatMap(a0 => r1.flatMap(a1 => ...))`, a fold that wraps each step around the previous one, or a `match` per field around the rest.
-- **The same splice emitted twice or more.** Each copy of a dispatch lambda or a field body doubles its cost.
+- No `try`/`if`/`match` inside an argument list (constructor, `::`, builder call): the compiler spills every earlier argument, so the size is quadratic. Bind results with statements.
+- Each field in its own local `def` (`ValDefs.createDef`, `FreshName.FromPrefix`), one flat statement per field. Fail-fast: `val rK = if (rK-1 ok) fieldK else rK-1`. Accumulating: `val eK = merge(eK-1, rK)`, with `null` = no failure yet.
+- No nesting per field (`flatMap` chains, folds wrapping each step).
+- Fail-fast and accumulating are two methods, not a runtime flag per field.
+- Branch in the macro on whatever it knows (evaluated config, annotations, type shape); emit a runtime `if` only on the non-evaluable config path.
+- Cast values to field types; never re-evaluate a decoder as a "type witness".
+- No local `lazy val` in per-call code (a `LazyRef` and a lock per call). Build schemas, regexes and name or key tables once per instance, or in the macro.
+- Splice each body once; refer to it by name.
 
-Generate **one statement per field** instead, and put each field's work in its own local `def`:
-
-```scala
-// fail-fast: the first failure in field order wins, later fields are not decoded
-def field0 = decode0(...)
-val r0 = field0
-def field1 = decode1(...)
-val r1 = if (r0.isRight) field1 else r0
-...
-if (rN.isRight) Right(new A(value(r0).asInstanceOf[F0], ...)) else rN.asInstanceOf[Either[E, A]]
-
-// accumulating: merge failures one field at a time; null = no failure so far
-val r0 = field0; val e0 = Helpers.merge(null, r0)
-val r1 = field1; val e1 = Helpers.merge(e0, r1)
-...
-if (eN == null) Right(new A(value(r0).asInstanceOf[F0], ...)) else Left(eN)
-```
-
-- Emit it with `ValDefs.createDef` / `ValDefs.createVal` and `FreshName.FromPrefix(...)` (fresh names: Scala 2 quotes are not hygienic), recursing over the field list and nesting `.use` - the *macro* recursion is nested, the *generated* code is flat.
-- `merge` is one public runtime helper (MiMa-checked) taking already-evaluated values, not lambdas.
-- Cast the values (`asInstanceOf[Field]`); do not pass a decoder expression as a "type witness", which evaluates (allocates) it again.
-- Use local `def`s, not local `lazy val`s: a local `lazy val` allocates a `LazyRef` and synchronizes on every call.
-- Emit fail-fast and accumulating as **two methods**, chosen once, not one method with a runtime `failFast` flag around every field.
-
-**Branch in the macro, not in the generated code.** When the macro knows a value - evaluated config (section 3), an annotation, the shape of the type - emit only the branch that applies. A runtime `if (config.x)` around each field emits both branches for every field. Keep the runtime-config fallback correct but small.
-
-**Do work at the right time:** at compile time first, then once per instance (a cached `lazy val` of the instance: schemas, name tables, compiled regexes, expected-key sets, field decoders), and per call only when it depends on the input.
+[wide-types.md](wide-types.md) has a worked example: how a decoder failed at 88 fields, how to detect it (with a size-guard test), the fix in Hearth code, and the same mistake in other shapes.
 
 ## 6. Warning-free output
 
@@ -116,13 +95,11 @@ Put everything generated code calls (factories, helpers for types that cannot be
 ## Verification
 
 - Bytecode: `javap -c -p` the generated classes; look for `BoxesRunTime`, `Function1.apply` in hot paths, per-type `$anon` classes, `LazyRef` in methods that run per call.
-- **A size guard test.** Derive instances for a wide fixture (100 fields, with defaults and `Option`s; keep it at about 100 - much wider fixtures can run the compiler out of memory), read the generated test class files, and fail when any method's `Code` attribute exceeds 8000 B. Run it on Scala 2.13 and 3, with a compile-time config and with a runtime (non-evaluable) config. Behaviour tests and oracles cannot see this; a 5-field benchmark cannot either.
-- JMH benchmarks against the upstream library (with JFR/async-profiler to find the hot spot), including **wide types** and the **runtime-config path**; add `-prof gc` to compare allocations per operation. On a shared machine, re-run anything surprising in a focused run before trusting it.
+- **A size guard test:** a 100-field fixture, failing when any generated method exceeds 8000 B, on Scala 2.13 and 3, with a compile-time and a runtime config ([wide-types.md](wide-types.md)).
+- JMH benchmarks against the upstream library (with JFR/async-profiler to find the hot spot), including a **wide type** and the **runtime-config path**; `-prof gc` for allocations.
 - Behaviour unchanged: round-trip and golden tests on both Scala versions.
-- A change that adds behaviour to generated code needs both checks: behaviour (tests, oracles) and cost (size guard, benchmark numbers).
 
 ## Reference
 
-- Kindlings 0.4.0: factories [FastShowPrettyFactories](https://github.com/kubuszok/kindlings/blob/0.4.0/fast-show-pretty/src/main/scala/hearth/kindlings/fastshowpretty/internal/runtime/FastShowPrettyFactories.scala), [CatsDerivationFactories](https://github.com/kubuszok/kindlings/blob/0.4.0/cats-derivation/src/main/scala/hearth/kindlings/catsderivation/internal/runtime/CatsDerivationFactories.scala); optimized codec [jsoniter-derivation](https://github.com/kubuszok/kindlings/tree/0.4.0/jsoniter-derivation/src/main/scala/hearth/kindlings/jsoniterderivation/internal/compiletime); benchmark notes [anon class vs lambda](https://github.com/kubuszok/kindlings/blob/0.4.0/docs/research/anon-vs-lambda/analysis.md).
-- Flat construction and size guards (Kindlings, after 0.4.0): [FlatFieldsConstruct](https://github.com/kubuszok/kindlings/blob/master/derivation-commons/src/main/scala/hearth/kindlings/derivation/compiletime/FlatFieldsConstruct.scala), [CirceBytecodeSizeSpec](https://github.com/kubuszok/kindlings/blob/master/circe-derivation/src/test/scalajvm/hearth/kindlings/circederivation/CirceBytecodeSizeSpec.scala), the [post-mortem of the 0.4.0 regressions](https://github.com/kubuszok/kindlings/blob/master/docs/research/postmortem-0.4.0-codegen-regressions.md) and the [generated-code audit](https://github.com/kubuszok/kindlings/blob/master/docs/research/generated-code-audit-2026-11.md).
+- Kindlings 0.4.0: factories [FastShowPrettyFactories](https://github.com/kubuszok/kindlings/blob/0.4.0/fast-show-pretty/src/main/scala/hearth/kindlings/fastshowpretty/internal/runtime/FastShowPrettyFactories.scala), [CatsDerivationFactories](https://github.com/kubuszok/kindlings/blob/0.4.0/cats-derivation/src/main/scala/hearth/kindlings/catsderivation/internal/runtime/CatsDerivationFactories.scala); optimized codec [jsoniter-derivation](https://github.com/kubuszok/kindlings/tree/0.4.0/jsoniter-derivation/src/main/scala/hearth/kindlings/jsoniterderivation/internal/compiletime).
 - Hearth docs: [semiEval](https://scala-hearth.readthedocs.io/en/0.4.5/basic-utilities/#exprsemieval), [ValDefs](https://scala-hearth.readthedocs.io/en/0.4.5/basic-utilities/#valdefs), [Best Practices - suppress warnings, MiMa](https://scala-hearth.readthedocs.io/en/0.4.5/best-practices/).

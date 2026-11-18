@@ -156,37 +156,19 @@ pass happy-path tests. Each entry gives the symptom, the cause, and what the cor
 
 ## Generated-code shape and cost
 
-These compile, pass behavioural tests and oracles, and look fine on a 5-field benchmark. They surface as "Method too
-large" on wide types, or as methods over 8000 B that HotSpot never JIT-compiles. Kindlings 0.4.0 shipped all of them
-while adding upstream-parity behaviour (see the `hearth-generated-code-performance` skill, section 5).
+These compile, pass behavioural tests and look fine on a 5-field benchmark, but on wide types they produce methods over
+8000 B (never JIT-compiled) or "Method too large". Worked example and fixes: `hearth-generated-code-performance`
+(`wide-types.md`).
 
-44. **A runtime `if` on configuration the macro already evaluated.**
-    - **Symptom:** both branches emitted for every field or subtype; the method doubles in size.
-    - **Cause:** new behaviour added as `if (config.x) ... else ...` inside the quote, next to code that already uses
-      the compile-time config value.
-    - **Correct:** branch in the macro on the evaluated value and emit only the branch that applies. Emit the runtime
-      `if` only on the path where the config cannot be evaluated.
-45. **`try`/`if`/`match` inside an argument list.**
-    - **Symptom:** quadratic growth in the number of fields; a huge StackMapTable on Scala 2.13.
-    - **Cause:** a field's fallback logic written as a constructor argument, a `::` element or a builder argument.
-      The compiler spills every argument evaluated before a `try`, and needs a frame listing all live values for
-      each branch.
-    - **Correct:** decode each field in its own local `def` (`ValDefs.createDef`), bind results with statements, and
-      pass plain values to the constructor. Write optional entries with statements (`builder.put(...)` under an
-      `if`), not with an `if` inside the list being built.
-46. **Per-field nesting.** A chain of `flatMap`s, a fold that wraps each field around the previous ones, or a `match`
-    per field around the rest. Generate flat statements: `val rK = if (rK-1 ok) fieldK else rK-1` for fail-fast,
-    `val eK = merge(eK-1, rK)` (with `null` = no failure) for accumulating.
-47. **A decoder expression used as a "type witness".** For example `unsafeCast(value, <decoder expr>)` to get the
-    field type. The decoder is evaluated (allocated) again on every call. Cast the value to the field type instead.
-48. **One method with a runtime `failFast` flag.** Every field gets both modes. Emit two methods and choose once.
-49. **Local `lazy val`s in per-call code.** Each one allocates a `LazyRef` and synchronizes on every call. Use a
-    local `def`, a `val`, or a `lazy val` of the instance.
-50. **Per-call work that belongs to the instance or to compile time.** Schemas, name lists or alias lists, regexes
-    (`String.replaceAll`), expected-key `Set`s and field decoders rebuilt inside the method that runs per call. Cache
-    them on the instance, or compute them in the macro.
-51. **The same splice emitted several times.** A dispatch lambda or field body spliced into two or three places
-    duplicates its whole bytecode. Bind it once (a `def` or a `val`) and refer to it.
-52. **No size check.** Only small fixtures in tests and benchmarks, so quadratic growth is never seen. Add a guard
-    test that derives for a 100-field fixture and fails when any generated method exceeds 8000 B, on both Scala
-    versions, with a compile-time and a runtime config.
+44. **A runtime `if (config.x)` on configuration the macro already evaluated.** Both branches are emitted per field.
+    Branch in the macro.
+45. **`try`/`if`/`match` inside an argument list** (constructor, `::`, builder call). Quadratic size, a huge
+    StackMapTable on 2.13. Decode each field in a local `def`, bind results with statements.
+46. **Nesting per field** (`flatMap` chains, folds wrapping each field). Use flat `val rK = ...` statements.
+47. **A decoder expression as a "type witness"** to cast a field: evaluated again on every call. Use `asInstanceOf`.
+48. **One method with a runtime `failFast` flag per field.** Emit two methods.
+49. **Local `lazy val`s in per-call code:** a `LazyRef` and a lock per call. Use a `def` or an instance `lazy val`.
+50. **Per-call schemas, regexes, name/alias lists or key sets.** Build them once per instance, or in the macro.
+51. **The same splice emitted several times.** Bind it once, refer to it by name.
+52. **No size check.** Add a guard test: a 100-field fixture, no generated method over 8000 B, both Scala versions,
+    compile-time and runtime config.
