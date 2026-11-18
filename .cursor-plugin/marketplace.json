@@ -34,9 +34,14 @@
       "description": "Skills for using multiarch-scala: cross-platform JVM/Scala.js/Scala Native builds, native library provider JARs, NativeLibLoader, Panama FFM, zig cross-linking, JVM release packaging, Android APKs without Gradle, cross-platform resources and ServiceLoader."
     },
     {
-      "name": "re-scale",
-      "source": "./plugins/re-scale",
-      "description": "Skills, agents and hooks for porting libraries to Scala 3 with the re-scale CLI: conversion guides (Java, Dart, Ruby), shortcut and stub scans, file-header metadata, migration/audit/issue tracking, and the implement-audit loop."
+      "name": "re-scale-hooks",
+      "source": "./plugins/re-scale-hooks",
+      "description": "The re-scale PreToolUse guard hook for any repository: denies shell grep/find/ls/sed/awk, pipes into head/tail/wc, bare sbt, rm, kill, destructive git and secret-file access, asks before unknown git and GitHub state changes, and auto-approves everything else; rules extend in .rescale/claude-hooks.yaml."
+    },
+    {
+      "name": "re-scale-porting",
+      "source": "./plugins/re-scale-porting",
+      "description": "Skills and agents for porting libraries to Scala 3 with the re-scale CLI: conversion guides (Java, Dart, Ruby), shortcut and stub scans, file-header metadata, migration/audit/issue tracking, and the implement-audit loop. Pair with re-scale-hooks."
     }
   ]
 }
