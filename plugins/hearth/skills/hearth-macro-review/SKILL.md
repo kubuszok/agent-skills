@@ -74,7 +74,8 @@ say so and write a minimal reproducer (see "Hearth gaps" below).
 Rate the macro **Not production ready** if any of these holds:
 - a user-provided implicit does not override the generated logic;
 - derivation recurses into itself through implicit search (infinite expansion or OOM risk);
-- recursive types do not work, or need user-side tricks;
+- recursive types do not work, or need user-side tricks (including mutual, generic and cross-compilation-unit
+  recursion, checklist C16);
 - errors are reported fail-fast with no aggregation, or do not say which field or subtype failed;
 - the user cannot see what the macro generated, and nothing logs the derivation;
 - the generated code emits warnings that users with `-Xfatal-warnings` must suppress;

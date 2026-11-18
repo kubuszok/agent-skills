@@ -244,3 +244,14 @@ only to type class derivation. This checklist extends Hearth's
 **C15. Golden and round-trip tests** *(serialization-like macros)*.
 - **Check:** The wire format is pinned by golden tests. Round trips are tested. Behaviour that differs from the
   library being replaced is documented and tested.
+
+**C16. Stress tests** *(derivation)*.
+- **Check:** Tests derive, on Scala 2.13 and 3:
+  - a ~100-field case class with defaults and `Option`s (methods under 8000 B, see U11);
+  - a sealed hierarchy with 100+ subtypes, and a chain of 20+ nested case classes;
+  - one field type repeated dozens of times: derived once through the cache, compile time stays linear;
+  - recursion: direct (`Tree(children: List[Tree])`), mutual (`A -> B -> A`), through `Option`/`Map`/`Either`/an
+    integration type, through a sealed trait, generic (`Tree[A]`), with a user-provided instance inside the cycle, and
+    with the types defined in another compilation unit;
+  - for HKT derivation: the same recursive shapes, e.g. `Functor` for `Tree[A](value: A, children: List[Tree[A]])`.
+- **Verify:** Each of these compiles within the default timeout and round-trips (or behaves) correctly at runtime.
