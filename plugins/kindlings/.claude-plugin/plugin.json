@@ -1,6 +1,6 @@
 {
   "name": "kindlings",
-  "version": "0.4.0-2",
+  "version": "0.4.0-3",
   "description": "Skills for using Kindlings: configuring and troubleshooting its type class derivations (circe, jsoniter-scala, cats, avro, pureconfig, tapir, ...), migrating from upstream derivation, and its di/mock/optics/parser modules.",
   "author": {
     "name": "Mateusz Kubuszok",

@@ -113,7 +113,7 @@ implicit val tolerant: Diff[Double] = Diff.approximate(0.001)             // |l 
 Kindlings adds Myers-optimal sequence alignment (difflicious/diffx match greedily or by index), hierarchical string
 diffs, configurable name style / colour / indentation, Scala Native. Not available in 0.4.0: path-based configuration
 (`ignoreAt`, `modify(_.a.b)`), test-framework integrations, custom matching of collection elements by key for derived
-fields, cats collection support.
+fields. Cats collections (`NonEmptyList`, ...) work with `kindlings-cats-integration` on the classpath.
 
 ## Gotchas
 
