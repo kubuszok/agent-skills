@@ -10,6 +10,7 @@ Each library is a separate plugin. Install only the ones your project uses.
 |---|---|---|
 | [`hearth`](plugins/hearth) | [Hearth](https://github.com/kubuszok/hearth) 0.4.5 | Writing your own Scala 2.13 / Scala 3 macros with Hearth: cross-quotes, `MIO`, `CaseClass`/`Enum`, type class derivation, standard extensions, debugging, testing; Hearth's runtime utilities (`TypeName`, source location) |
 | [`kindlings`](plugins/kindlings) | [Kindlings](https://github.com/kubuszok/kindlings) 0.4.0 | Using Kindlings derivation (circe, jsoniter-scala, cats, avro, pureconfig, sconfig, tapir, yaml, xml, ubjson, scalacheck, diff, fast-show-pretty), its integrations, and the di / mock / optics / parser modules |
+| [`sbt-kubuszok`](plugins/sbt-kubuszok) | [sbt-kubuszok](https://github.com/kubuszok/sbt-kubuszok) 0.2.4 | Adding the sbt-kubuszok plugin to a build: what it already configures, `projectType`/`Aliases`/`DevProperties`, GitHub Actions CI and release workflows, troubleshooting failed snapshot/release publishes |
 
 The skills describe the library version shown above. They also tell the agent to check the version in your build
 and to consult the documentation of that version when it differs.
