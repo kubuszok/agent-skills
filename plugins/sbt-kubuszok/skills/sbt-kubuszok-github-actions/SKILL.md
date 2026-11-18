@@ -103,7 +103,11 @@ bigger release heap) are in [workflows.md](workflows.md). In short:
    so never put non-version tags on master commits.
 4. The tag push triggers release.yml, which runs `+publishSigned` into `localStaging` and then `sonaRelease` uploads
    and releases the bundle.
-5. If the tag run failed **before** `sonaRelease` uploaded anything (compile, doc, OOM, SNAPSHOT guard), fix it on
+5. After the run succeeds and the artifacts are on Central, create the GitHub release for the tag with notes
+   (kubuszok repos publish one per version; the tag alone is not enough):
+   `gh release create 1.2.3 --verify-tag --latest --title 1.2.3 --notes "..."`. Summarize user-visible changes and
+   upgrade steps since the previous tag (`git log --oneline <previous-tag>..1.2.3`).
+6. If the tag run failed **before** `sonaRelease` uploaded anything (compile, doc, OOM, SNAPSHOT guard), fix it on
    master, move the tag (`git tag -f 1.2.3 <fixed-sha> && git push -f origin 1.2.3`) and let it re-run. If the
    version already reached Central, it cannot be re-published: release the next patch version.
 
