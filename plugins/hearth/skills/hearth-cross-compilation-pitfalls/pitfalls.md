@@ -26,6 +26,12 @@ Same for element types from `Type.CtorN.unapply` and for `IsValueType`/`IsCollec
 
 **Scala 2.** Values of type `??`, `Expr_??`, `Type[...]`, your ctx or error ADT referenced inside a quote (even inside an `Expr.splice` block) make the reifier fail (`Option[MyMacros.this.??]` ...). Compute them in a `val` before the quote and only splice `Expr`s.
 
+The same holds for the *types* of lambdas created inside a splice: a helper such as
+`dispatch(cursorFor: ChildReader[A] => Expr[Cursor])` called inside `Expr.splice` with a lambda whose parameter is a
+class nested in your rule (`ChildReader`) fails at the user's call site with
+`object MyRuleImpl is not a member of package ...` (`note: trait MyRuleImpl exists, but it has no companion object`).
+Pass plain values instead (e.g. `Boolean => Expr[Cursor]`), and look up the macro-internal data outside the splice.
+
 ## 4. `Type.of` bootstrap cycles
 
 **Both.** `implicit val X: Type[X] = Type.of[X]` asks the native summoner (`weakTypeTag`/`scala.quoted.Type.of`) for a `Type[X]` while that very implicit is in scope. Since Hearth 0.4.0 the val being defined is excluded for statically known types, but it still fails when `X` is abstract (nothing to materialize from) and in some provider code.
