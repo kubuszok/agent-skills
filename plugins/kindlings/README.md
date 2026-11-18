@@ -17,6 +17,9 @@ Install: `/plugin install kindlings@kubuszok` (Claude Code). See the [root READM
 | `kindlings-derivation-policy` | Restricting where automatic derivation may happen (opt-in, allowed scopes, `AllowDerivation`) |
 | `kindlings-migration` | Migrating from circe-generic, jsoniter `JsonCodecMaker`, kittens, avro4s, pureconfig-generic, tapir, scala-yaml, macwire, ScalaMock, quicklens; differences from each; upgrading between Kindlings versions |
 | `kindlings-integrations` | Cats collections, refined, iron, neotype, scala-newtype support |
+| `kindlings-custom-integration` | Making your own types (wrappers, collections, Option/Either-like) work in every Kindlings derivation through a Hearth provider module |
+| `kindlings-testing` | Testing derived instances: golden wire-format tests, round-trip properties with derived `Arbitrary`, `Diff` assertions, differential tests during migration, compile-time and policy tests |
+| `kindlings-http-api` | tapir HTTP APIs where Kindlings JSON codecs, tapir `Schema`s and the OpenAPI document share one configuration |
 
 **Derivation modules**
 
