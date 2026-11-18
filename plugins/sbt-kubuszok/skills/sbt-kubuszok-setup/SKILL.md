@@ -95,8 +95,10 @@ A `.scalafmt.conf` must exist in the repo root. CI checks formatting with it.
 
 - the POM metadata Central requires: `organization`, `name`/`moduleName`, `description`, `homepage`, `licenses`,
   `developers`, `scmInfo`;
-- doc and sources JARs: **never** set `packageDoc / publishArtifact := false`, because Central rejects releases
-  without a javadoc JAR. To get an empty doc JAR, use `Compile / doc / sources := Seq.empty`;
+- doc and sources JARs: do not set `packageDoc / publishArtifact := false` or `packageSrc / publishArtifact := false`.
+  Central's publishing requirements list javadoc and sources JARs. To get an empty doc JAR, use
+  `Compile / doc / sources := Seq.empty`. Skipping doc JARs only for snapshots
+  (`packageDoc / publishArtifact := !isSnapshot.value`) is the one accepted shortcut, used where Scaladoc is slow;
 - MiMa settings (`mimaPreviousArtifacts`, `mimaFailOnNoPrevious`);
 - scalac options, dependencies, `Global / allowUnsafeScalaLibUpgrade` (see troubleshooting).
 
@@ -110,8 +112,9 @@ projectType := ProjectType.NonPublished // DEFAULT: publish / skip := true, publ
 
 - The **default is `NonPublished`**. Every module meant for Central needs
   `ScalaLibrary` or `JarOnly`. Otherwise `ci-release` succeeds and uploads nothing for it.
-- Root, tests, examples and benchmarks can keep the default. Do not add `publish / skip := true` as well. Do not apply
-  `publishSettings` and `noPublishSettings` to the same project: the result depends on the order.
+- Root, tests, examples and benchmarks can keep the default. Do not add `publish / skip := true` as well. If a shared
+  `publishSettings` and a `noPublishSettings` both reach one project, apply `noPublishSettings` **last**; the later
+  `projectType` wins.
 - In 0.2.5, `JarOnly` publishes exactly like `ScalaLibrary`. For a non-Scala JAR, still set
   `crossPaths := false, autoScalaLibrary := false` yourself.
 - An sbt plugin module uses `enablePlugins(SbtPlugin)` and `projectType := ProjectType.JarOnly`. To cross-publish it
@@ -143,12 +146,9 @@ import commandmatrix.extra.*
 import kubuszok.sbt.*
 import kubuszok.sbt.KubuszokPlugin.autoImport.*
 
-val versions = new {
-  val scala213 = "2.13.18"
-  val scala3 = "3.3.8"
-  val scalas = List(scala213, scala3)
-  val platforms = List(VirtualAxis.jvm, VirtualAxis.js, VirtualAxis.native)
-}
+// project/Versions.scala: `object versions { val scala213 = "2.13.18"; val scala3 = "3.3.8"; ... }`
+// (not `val versions = new { ... }` in build.sbt: on sbt 2 the build is Scala 3, where members of an anonymous
+// class are not accessible without reflection)
 
 val dev = new DevProperties(Some(versions.scala213), Some(versions.scala3), versions.platforms)
 
@@ -227,7 +227,7 @@ ide.platform = jvm
 7. Run `scalafmtAll`, `scalafmtSbt` (or the `scalafmt` CLI on the whole repo) and commit the result. CI checks
    formatting and `scalafmtOnCompile` is off there.
 8. Verify locally before pushing:
-   - `sbt "show version" "show isSnapshot"`
+   - `sbt "show version ; show isSnapshot"` (one argument: sbt 2 joins several arguments into one line)
    - `sbt "projects"`
    - `sbt ci-jvm-3`
    - `sbt "+publishLocal"`, which runs Scaladoc on every cell.
@@ -246,4 +246,24 @@ ide.platform = jvm
   `1.2.3`.
 - **Deleting too much while migrating.** Removing `packageDoc` settings, MiMa or POM metadata along with the
   boilerplate breaks the release (Central validation). Remove only what section 3 lists.
+- **Git worktrees break versioning.** sbt-git reads the repository with JGit, which does not understand the `.git`
+  file of a `git worktree`. Inside a worktree `version` falls back to a timestamp (`20261118T202211`) and tags are not
+  seen. Do not `publishLocal` artifacts other builds depend on, or release, from a worktree; use a normal clone.
+  Do **not** fix it with `git.useConsoleForROGit := true`: with sbt-kubuszok 0.2.5 the console reader reports
+  `gitCurrentTags == Seq("")` on an untagged commit, so `isSnapshot` becomes `false`, the version loses `-SNAPSHOT`,
+  and `ci-release` would attempt a release.
+- **`ci-*` starts with `clean`.** Builds with source generators or prebuilt caches that `clean` would wipe override
+  `ci` in the `Aliases` subclass, e.g.
+  `override def ci(p: String, s: String) = super.ci(p, s).split(" ; ").filterNot(_ == "clean").mkString(" ; ")`.
+- **Extra artifacts (classifier JARs) on sbt 2.** `artifacts` and `packagedArtifacts` are project-level keys;
+  `Compile / packagedArtifacts` is silently ignored by `publish`/`publishLocal` (sbt 1 and 2). Use
+  `addArtifact(Artifact(name.value, "jar", "jar", "natives"), myNativesJar)` at project level. It also handles sbt 2
+  caching; a hand-written `packagedArtifacts := ...` needs `Def.uncached(...)` on sbt 2 or fails to load with
+  `given evidence sjsonnew.JsonFormat[...Map[...Artifact, xsbti.HashedVirtualFileRef]] is not found`. Files go in as
+  `HashedVirtualFileRef` (`fileConverter.value.toVirtualFile(file.toPath)`), not `File`. Native libraries can instead
+  go inside the main JAR via `Compile / packageBin / mappings`, which is what the kubuszok `*-native-providers` do.
+- **Nested builds drift.** A nested sbt build (its own `project/`) has its own `plugins.sbt`: bump sbt-kubuszok there
+  too, and remove bundled plugins from it as well.
+- **`checkNoSnapshotDeps` does not see the meta-build.** SNAPSHOT plugins in `project/plugins.sbt` are not checked;
+  release only with released plugins.
 - More symptoms with error texts are in `sbt-kubuszok-troubleshooting`.

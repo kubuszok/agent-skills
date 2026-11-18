@@ -1,7 +1,8 @@
 # Workflow templates for sbt-kubuszok 0.2.5
 
-These templates follow kubuszok/hearth, kubuszok/kindlings and kubuszok/scala-sax-parser. The action versions were
-current when this was written; Dependabot keeps them up to date.
+The release workflow follows kubuszok/sbt-kubuszok's own `.github/workflows/release.yml`; the CI workflow follows
+kubuszok/kindlings and kubuszok/hearth. Not every kubuszok repo matches these templates yet; the templates are the
+target. The action versions were current when this was written; Dependabot keeps them up to date.
 
 ## `.github/workflows/ci.yml`
 
@@ -115,6 +116,37 @@ PR snapshot" in SKILL.md). `ci-release` builds every matrix cell (JVM, JS and Na
 If ci.yml installs extra native libraries, install them here as well.
 
 ## Variants
+
+### sbt 2: run sbt in the foreground
+
+Add after `coursier/setup-action` (in every workflow, or once in a composite setup action):
+
+```yaml
+      - name: Make `sbt` run in the foreground (sbt 2 thin client starts a background server)
+        shell: bash
+        run: |
+          dir="$RUNNER_TEMP/sbt-foreground"; mkdir -p "$dir"
+          printf '#!/usr/bin/env bash\nexec "%s" --server "$@"\n' "$(command -v sbt)" > "$dir/sbt"
+          chmod +x "$dir/sbt"; echo "$dir" >> "$GITHUB_PATH"
+```
+
+Windows runners also need an `sbt.bat` wrapper (see kubuszok/lls `.github/actions/setup-scala/action.yml`).
+
+### Scaladoc NPE on JDK 24/25
+
+Scala 3 Scaladoc before 3.9.0 can throw a `NullPointerException` in `SignatureBuilder` on JDK 24/25 (a C2 JIT
+miscompilation). Prefer JDK 17 for the release job. If a newer JDK is required, keep the class out of the JIT in
+`.jvmopts`:
+
+```
+-XX:CompileCommand=quiet
+-XX:CompileCommand=exclude,dotty/tools/scaladoc/translators/SignatureBuilder.*
+```
+
+### Native libraries in published JARs
+
+Build or download the natives in the release job before `sbt ci-release`, exactly as CI does, and in CI verify that
+the packaged JAR contains them (`unzip -l`). A missing library does not fail packaging.
 
 ### More heap for the release build
 

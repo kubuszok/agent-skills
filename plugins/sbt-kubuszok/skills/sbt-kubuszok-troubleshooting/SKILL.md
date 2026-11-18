@@ -4,7 +4,7 @@ description: >-
   Diagnosing failed builds and failed snapshot/release publishing in projects using the sbt-kubuszok sbt plugin:
   IncompatiblePluginsException / NoClassDefFoundError IvyActions$ after an sbt bump, "Input required and not
   supplied: gpg_private_key", "gpg: signing failed: No secret key", "Refusing to publish releasable version ... depends
-  on SNAPSHOT modules", "Expected ';'", "Scala version mismatch ... allowMismatchScala", "Build not configured to use
+  on SNAPSHOT modules", "Expected ';'", "failed to connect to server", test-interface (strict) eviction, "Scala version mismatch ... allowMismatchScala", "Build not configured to use
   exactly 1 platform", "No tests to run" on sbt 2, scaladoc errors and OutOfMemoryError only in the release job,
   modules silently not published, wrong SNAPSHOT versions (<sha>-SNAPSHOT), scalafmt check failures, allowUnsafeScalaLibUpgrade.
   Use when a CI or "Sonatype Release" GitHub Actions run fails in a repo whose project/plugins.sbt has sbt-kubuszok,
@@ -76,7 +76,7 @@ variant: `Unsupported ide.scala=... in dev.properties, it must be 2.13 or 3`)
 **"Check formatting" fails** right after adoption
 - Cause: `scalafmtOnCompile` formats only locally (it is off when `CI=true`), and it never formats `build.sbt` or
   `project/*.scala`. CI's `scalafmt --check` covers all of them.
-- Fix: run `scalafmt` (CLI) or `sbt scalafmtAll scalafmtSbt` and commit the result. Repeat after widening root
+- Fix: run `scalafmt` (CLI) or `sbt "scalafmtAll ; scalafmtSbt"` and commit the result. Repeat after widening root
   aggregation.
 
 **Green CI, but no tests ran** (`No tests to run`) on sbt 2
@@ -93,6 +93,24 @@ variant: `Unsupported ide.scala=... in dev.properties, it must be 2.13 or 3`)
 - Cause: sbt-kubuszok ≤ 0.2.4 ignored `ide.scala` when both 2.13 and 3 were built, and `dev.props.getProperty`
   returns `null` for a missing key.
 - Fix: upgrade to 0.2.5 and read custom keys with `dev.prop("key")` (an `Option`).
+
+**`found version conflict(s) in library dependencies ... org.scala-native:test-interface_native0.5_3:0.5.12 (strict) is selected over 0.5.8`**
+on a Scala Native project
+- Cause: Scala Native artifacts use the `strict` version scheme. A test library that exports an older
+  `test-interface` transitively conflicts with the bundled Scala Native 0.5.12: munit ≤ 1.3.0 (1.3.1+ scopes it to
+  `test`), scalacheck 1.19.
+- Fix: munit ≥ 1.3.1 (≥ 1.3.3 matches 0.5.12). For other libraries, relax eviction on the Native platform only:
+  `MatrixAction.ForPlatforms(VirtualAxis.native).Configure(_.settings(evictionErrorLevel := sbt.util.Level.Warn))`
+  passed to `someVariations` (as kubuszok/pipez does).
+
+**`failed to connect to server`** (sbt 2 on GitHub Actions), or credentials/env not visible to sbt in a later step
+- Cause: sbt 2's launcher runs a thin client with a background server, which keeps the first step's environment.
+- Fix: run `sbt --server ...` (PATH wrapper in `sbt-kubuszok-github-actions`).
+
+**Version is a timestamp (`20261118T202211`) or tags are ignored locally**
+- Cause: the build runs in a `git worktree`; sbt-git's JGit cannot read it.
+- Fix: run version-sensitive tasks (`publishLocal` for other builds, releases) from a normal clone. Do not set
+  `git.useConsoleForROGit := true` (see `sbt-kubuszok-setup` gotchas: it makes untagged commits look like releases).
 
 ## Release / snapshot job fails
 
@@ -135,12 +153,15 @@ on 2.13)
 - Fix: raise `-Xmx` on the release runner (the `.jvmopts` variant in `sbt-kubuszok-github-actions`). Scaladoc NPEs on
   JDK 24/25 are a JDK and Scala problem: pin the JDK to 17.
 
-**Central rejects the release for a missing javadoc JAR**
-- Cause: `packageDoc / publishArtifact := false` (often added to dodge a Scaladoc crash).
-- Fix: remove it. For an intentionally empty doc JAR, use `Compile / doc / sources := Seq.empty`.
+**Release published without javadoc/sources JARs, or rejected by Central for them**
+- Cause: `packageDoc / publishArtifact := false` / `packageSrc / publishArtifact := false` (often added to dodge a
+  Scaladoc crash). Central's requirements list both JARs.
+- Fix: remove it. For an intentionally empty doc JAR, use `Compile / doc / sources := Seq.empty`. For a Scaladoc NPE
+  on JDK 24/25, see the JIT exclude in `sbt-kubuszok-github-actions`.
 
-**`Expected ';'`** at the start of the sbt step
-- Cause: on sbt 2, `sbt "+publishSigned" sonaRelease` (several arguments) is joined into one line.
+**`Expected ';'`** (or `Expected '/'`) at the start of the sbt step
+- Cause: on sbt 2, `sbt "+publishSigned" sonaRelease` or `sbt testFull mima` (several arguments) is joined into one
+  line.
 - Fix: use `sbt ci-release`, or one argument `sbt "a ; b"`.
 
 **`HTTP response code: 429`** or `Connection is closed` while uploading snapshots
