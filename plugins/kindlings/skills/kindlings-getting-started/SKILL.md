@@ -8,8 +8,8 @@ description: >-
   JVM-only and Scala 3-only modules), sbt / Mill / scala-cli coordinates, the shared API shape
   (KindlingsEncoder.derived[A] as implicit def / inline given, implicit val vs given vs derives, inline
   encode/decode helpers), recursive and nested types, generic types like Box[A], never mixing with upstream
-  generic-derivation imports, user-provided implicits winning, and which kindlings-* skill to read next. Use when
-  adding Kindlings to a build, picking a module, or writing the first derived instance.
+  generic-derivation imports, user-provided implicits winning, fat-JAR runtime footprint, and which kindlings-* skill to read next. Use when
+  adding Kindlings to a build, picking a module, writing the first derived instance, or shrinking a fat JAR.
 license: Apache-2.0
 metadata:
   library: kindlings
@@ -77,9 +77,16 @@ Each module depends on the upstream *core* library (e.g. `circe-core`, `jsoniter
 libraryDependencies += "com.kubuszok" %% "kindlings-circe-derivation" % "0.4.0"
 // sbt, Scala.js / Scala Native / crossProject
 libraryDependencies += "com.kubuszok" %%% "kindlings-circe-derivation" % "0.4.0"
-// test-only modules
+// test-only modules: kindlings-mock always; kindlings-scalacheck-derivation and kindlings-diff-derivation
+// unless production code uses them (e.g. diffs for audit logs)
 libraryDependencies += "com.kubuszok" %%% "kindlings-mock" % "0.4.0" % Test
+libraryDependencies += "com.kubuszok" %%% "kindlings-scalacheck-derivation" % "0.4.0" % Test
 ```
+
+Depend only on the modules from the table above. `kindlings-derivation-commons`, `kindlings-macro-commons` and
+`kindlings-json-schema-config-macro-providers` appear in the dependency tree but are compile-time internals - never add
+them yourself. For what is needed at runtime and how to strip the macro code from a fat JAR, see
+[runtime-footprint.md](runtime-footprint.md).
 
 ```scala
 // Mill 1.x (Mill 0.11/0.12: `def ivyDeps = Agg(ivy"...")`); use `::0.4.0` (double colon) in Scala.js/Native modules
