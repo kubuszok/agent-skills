@@ -29,9 +29,10 @@ plugin's own workflows. Build setup (aliases, `projectType`) is in `sbt-kubuszok
 
 ## Rules (each one broke a real repo)
 
-1. **`actions/checkout` with `fetch-depth: 0`** in every job that runs sbt, especially release. Without the full
-   history and tags, `git describe` fails and snapshots are versioned `<sha>-SNAPSHOT`, which does not sort. The
-   tag/release logic also loses its input.
+1. **`actions/checkout` with `fetch-depth: 0`** in the release job (required) and in jobs that depend on the version
+   (MiMa, version printing); recommended in every job that runs sbt. Without the full history and tags,
+   `git describe` fails and snapshots are versioned `<sha>-SNAPSHOT`, which does not sort. The tag/release logic
+   also loses its input.
 2. **Run release.yml on `push` to master, on tags, and on `pull_request` guarded to trusted authors.** Publishing
    snapshots from PRs is the intended workflow: other repos (or the maintainer) test a change from its PR snapshot
    before merging and releasing. The job must carry the trusted-author `if:` guard from the template
@@ -49,9 +50,18 @@ plugin's own workflows. Build setup (aliases, `projectType`) is in `sbt-kubuszok
 6. **Pin the JDK** in `coursier/setup-action` (`jvm: 'temurin:1.17.0.15'`). Its default moves (to 25 at the time of
    writing), and Scala 2.13.16 cannot read JDK 25 class files. sbt 2 needs JDK 17+. sbt 1.x builds may release on 11.
 7. **Pass several sbt commands as one argument** (`sbt "a ; b"`). sbt 2 joins separate program arguments into one
-   line, and `sbt a b` fails with `Expected ';'`.
-8. **Check formatting with the `scalafmt` CLI** (`scalafmt --check`). It also covers `build.sbt` and `project/*.scala`,
-   which `scalafmtCheckAll` skips. `scalafmtOnCompile` is off on CI (`CI=true`), so unformatted code only shows up
+   line, and `sbt a b` fails with `Expected ';'` (or `Expected '/'`, depending on the commands).
+10. **On sbt 2, run sbt in the foreground on CI: `sbt --server ...`.** sbt 2's launcher defaults to a thin client
+    that starts a background server. On a runner the server keeps the environment of the step that started it (a
+    later step's `SONATYPE_*` never reach it), it cannot start from bash on Windows, and runs can fail with
+    `failed to connect to server`. kubuszok repos (lls, sge, ssg) put a wrapper that adds `--server` first on `PATH`
+    in their setup action (template in [workflows.md](workflows.md)).
+11. **The release job needs every pre-step CI has**: source generation, Node/npm for bundled assets, native
+    toolchains or downloaded native libraries. `ci-release` compiles and packages everything again from a clean
+    checkout.
+8. **Check formatting with the `scalafmt` CLI** (`scalafmt --check`). It covers every file `.scalafmt.conf` matches.
+   `sbt "scalafmtCheckAll ; scalafmtSbtCheck"` covers the projects' sources, `build.sbt` and `project/*.scala`, but
+   misses other meta-build source directories and docs. `scalafmtOnCompile` is off on CI (`CI=true`), so unformatted code only shows up
    here. Format the whole repo in the adoption PR.
 9. **Do not use `cancel-in-progress` in release.yml.** Cancelling a publish halfway leaves a partial snapshot or
    staging upload. CI may use it.
@@ -115,6 +125,23 @@ bigger release heap) are in [workflows.md](workflows.md). In short:
    `checkNoSnapshotDeps` refuses it anyway.
 
 ## Scala Steward and Dependabot
+
+kubuszok repos manage Scala compiler versions by hand. `updates.pin` does not hold a Scala LTS line (Steward unifies
+it with a newer Scala 3 present in the build), and per-artifact ignores miss platform-suffixed artifacts, so the
+whole group is ignored:
+
+```hocon
+updates.ignore = [ { groupId = "org.scala-lang" } ]
+updates.pin = [
+  # only for repos that stay on sbt 1.x
+  { groupId = "org.scala-sbt", artifactId = "sbt", version = "1." }
+]
+pullRequests.grouping = [
+  { name = "scala-versions", title = "Scala compiler updates", filter = [{ group = "org.scala-lang" }, { group = "org.scoverage" }] }
+]
+```
+
+Also ignore hand-pinned `-SNAPSHOT` dependencies of your own libraries.
 
 - Scala Steward bumps `sbt.version` and `sbt-kubuszok` separately. Those PRs fail until both are compatible (see the
   version table in `sbt-kubuszok-setup`). Merge them together, or push the missing bump onto the Steward PR.

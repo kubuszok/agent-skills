@@ -10,13 +10,17 @@ import commandmatrix.extra.*
 import kubuszok.sbt.*
 import kubuszok.sbt.KubuszokPlugin.autoImport.*
 
-val versions = new {
-  val scala213 = "2.13.18"
-  val scala3 = "3.3.8"
-  val scalas = List(scala213, scala3)
-  val platforms = List(VirtualAxis.jvm, VirtualAxis.js, VirtualAxis.native)
-  val munit = "1.3.6"
-}
+// project/Versions.scala (works on sbt 1 and sbt 2; `val versions = new { ... }` in build.sbt does not compile
+// usefully on sbt 2, whose build dialect is Scala 3):
+//
+//   import sbt.VirtualAxis
+//   object versions {
+//     val scala213 = "2.13.18"
+//     val scala3 = "3.3.8"
+//     val scalas = List(scala213, scala3)
+//     val platforms = List(VirtualAxis.jvm, VirtualAxis.js, VirtualAxis.native)
+//     val munit = "1.3.6" // >= 1.3.1 on Scala Native 0.5.12, see sbt-kubuszok-troubleshooting
+//   }
 
 val dev = new DevProperties(
   scala213 = Some(versions.scala213),
@@ -136,7 +140,7 @@ lazy val plugin = project
   .settings(
     name := "sbt-my-plugin",
     projectType := ProjectType.JarOnly,
-    crossScalaVersions := Seq("3.9.0", "2.12.21"), // sbt 2.1 is built with Scala 3.9.0
+    crossScalaVersions := Seq("3.9.0", "2.12.21"), // the Scala version of the oldest sbt 2 you support
     scalaVersion := "2.12.21",
     pluginCrossBuild / sbtVersion := (scalaBinaryVersion.value match {
       case "2.12" => "1.13.1"
@@ -145,7 +149,9 @@ lazy val plugin = project
   )
 ```
 
-`ci-release` runs `+publishSigned`, so both the `_2.12_1.0` and `_sbt2_3` artifacts are published.
+`ci-release` runs `+publishSigned`, so both the `_2.12_1.0` and `_sbt2_3` artifacts are published. Build the sbt 2
+axis against the oldest sbt 2 you want to support (an sbt 2.0-built plugin also loads on sbt 2.1; sbt 2.1.0 uses
+Scala 3.9.0).
 
 ## Java / resource-only JAR
 
@@ -160,3 +166,20 @@ lazy val natives = project
     Compile / doc / sources := Seq.empty // empty but present javadoc JAR (Central requires one)
   )
 ```
+
+Native libraries go inside the JAR under a per-OS path. On sbt 2 `mappings` take `HashedVirtualFileRef`:
+
+```scala
+// after kubuszok/ssg-native-providers build.sbt
+Compile / packageBin / mappings ++= {
+  val conv = fileConverter.value
+  val dir = baseDirectory.value / "natives" / "linux-x86_64" // filled by an earlier CI step (build or download)
+  if (dir.exists())
+    sbt.IO.listFiles(dir).filter(_.isFile).toSeq
+      .map(f => (conv.toVirtualFile(f.toPath): xsbti.HashedVirtualFileRef) -> s"native/linux-x86_64/${f.getName}")
+  else Seq.empty
+}
+```
+
+The release workflow must produce the same `natives/` before `sbt ci-release` (see `sbt-kubuszok-github-actions`),
+and CI should check the JAR contents, because a missing library still packages fine.
