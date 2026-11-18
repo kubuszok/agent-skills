@@ -109,7 +109,7 @@ Generated shape: `{ def hash_Foo(value: Foo): Int = ...; def eqv_Foo(x: Foo, y: 
 - **Cache key collisions** -> different types sharing a key with an erased signature (`Any => Any`) collide: `buildCachedWith` fails with "already built", or `getNAry` returns the other type's def -> include the type in the key (`s"decode:${Type[B].plainPrint}"`), never `prettyPrint` (ANSI colours differ for the same type read from source vs classpath, so recursion is missed).
 - **Exponential compile time** with many repeated field types -> types re-derived instead of cached; make sure every structural rule goes through the cache and the cache is shared (`ValDefsCache.mlocal` is shared across `parTraverse`/`parTuple` branches by design).
 - **`parTuple` and your own state** -> `MLocal(initial)(fork)(join)` values are forked per branch, so a branch never sees the other's writes; derive sequentially when one derivation reads state another writes (e.g. a decoder body and a schema of the same value).
-- **`Method too large` / 64KB** -> large ADTs inlined into one expression -> every case class / enum body as its own def; a single huge case class may still need splitting (e.g. per-field defs).
+- **`Method too large` / 64KB, or methods over 8000 B (never JIT-compiled)** -> large ADTs inlined into one expression -> every case class / enum body as its own def. A wide case class also needs per-field local defs and flat statements: no `try`/`if` inside the constructor's argument list, no nesting per field (see `hearth-generated-code-performance`, section 5).
 
 ## `ValDefs` for local vals/vars
 

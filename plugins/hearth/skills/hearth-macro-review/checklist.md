@@ -108,6 +108,7 @@ only to type class derivation. This checklist extends Hearth's
   - Recursive or large logic is split into `def`s (the JVM 64 kB method limit).
   - Final instances are built with a factory method or lambda, not one anonymous class per expansion (class count
     and metaspace).
+  - Benchmarks include a wide type (dozens of fields) and the runtime-config path, not only small models.
 
 **U8. Actionable, aggregated errors.**
 - **Check:**
@@ -127,6 +128,23 @@ only to type class derivation. This checklist extends Hearth's
 **U10. Documentation for users.**
 - **Check:** Supported types, every configuration option with its default, how to debug, and known differences from
   any library this one replaces.
+
+**U11. Generated methods stay small and linear.**
+- **Check:**
+  - Every generated method of a 100-field case class is under 8000 B, the size above which HotSpot never JIT-compiles
+    a method, on Scala 2.13 and 3, with a compile-time and with a runtime config.
+  - The code grows by a constant per field: each field in its own local `def`, one statement per field, no nesting
+    per field, no `try`/`if`/`match` inside an argument list (constructor, `::`, builder call).
+  - Configuration known at compile time selects branches in the macro; the generated code has no `if (config.x)`
+    for it.
+  - Work is done at the latest time it can be: compile time, then once per instance, then per call. No per-call
+    schema, name list, regex or key set; no local `lazy val`s in per-call code.
+  - Fail-fast and accumulating modes are separate methods, not a runtime flag checked per field.
+- **Verify:**
+  - A guard test that derives for a wide fixture, reads the class files, and fails above 8000 B per method.
+  - `javap -c -p` of a 100-field derivation: look at the largest method and the StackMapTable size.
+  - Grep the quotes for `try` and `if` inside constructor arguments.
+  - Check items 44–52 of [llm-mistakes.md](llm-mistakes.md).
 
 ## 3. Correctness and test coverage
 
@@ -164,7 +182,7 @@ only to type class derivation. This checklist extends Hearth's
 **C6. Products.**
 - **Check:** Case classes with 0, 1 and 22+ fields, multiple parameter lists, private constructors (a clear error),
   generic case classes, tuples, Scala 3 named tuples, and Java Beans (if applicable; `JavaBean` utilities). Huge
-  case classes do not hit "Method too large" (generated code is split into `def`s).
+  case classes (100 fields, with defaults and `Option`s) compile, and their generated methods stay small (U11).
 
 **C7. Sums.**
 - **Check:**

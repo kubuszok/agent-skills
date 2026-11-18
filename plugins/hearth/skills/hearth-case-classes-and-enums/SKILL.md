@@ -73,6 +73,8 @@ cc.primaryConstructor.fold(
 }
 ```
 
+**Wide case classes.** Do not pass each field's decoding logic (with its `try`, default fallback or `if`) directly as a constructor argument: control flow inside an argument list grows the method quadratically and breaks the JVM's 8000-byte JIT limit, then the 64 KB limit, at a few dozen fields. Decode each field in its own local `def`, bind the results with flat statements, and pass plain values to the constructor (see `hearth-generated-code-performance`, section 5, for the fail-fast and accumulating shapes).
+
 Arguments are type-checked: an `Expr[Any]` for an `Int` field is rejected - keep each field's own type (see the helper-method trick below). Update one field of an existing value with `cc.copyMethod()` (`Option[Method.OnInstance.Of[A]]`): apply the instance, then (for a generic case class) the type arguments, then only the changed arguments, then `build()`. It is `None` for `sealed abstract case class`, vararg case classes, or an inaccessible `copy` (default `visibility = AtCallSite`).
 
 ## Annotations on fields and types

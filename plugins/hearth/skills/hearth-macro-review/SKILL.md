@@ -79,6 +79,8 @@ Rate the macro **Not production ready** if any of these holds:
 - the user cannot see what the macro generated, and nothing logs the derivation;
 - the generated code emits warnings that users with `-Xfatal-warnings` must suppress;
 - a supported category of types (per the library's own docs) has no tests.
+- a wide case class (about 100 fields) fails with "Method too large", or nothing checks the size of the generated
+  methods. Methods over 8000 B, which HotSpot never JIT-compiles, are at least "Should fix" (checklist U11).
 
 ## The three categories in short
 
@@ -106,7 +108,10 @@ The full items, with how to verify each one, are in [checklist.md](checklist.md)
 - Type class derivation lets users control *where* expansion happens, without separate "auto" and "semiauto" APIs.
   Sanely-automatic derivation is recursive inside one expansion. A policy or opt-in scope mechanism restricts
   where it may run.
-- Runtime performance is measured (JMH against hand-written code or the library being replaced), not assumed.
+- Runtime performance is measured (JMH against hand-written code or the library being replaced, including a wide
+  type and the runtime-config path), not assumed. Generated methods stay under 8000 B for 100 fields and grow
+  linearly: per-field `def`s, flat statements, no control flow inside argument lists, statically known config
+  resolved in the macro.
 - Errors are actionable and aggregated: every failing field or subtype is reported in one compilation, with the
   reason and a hint on how to enable logging. No fail-fast that hides the next problem until a rerun.
 
