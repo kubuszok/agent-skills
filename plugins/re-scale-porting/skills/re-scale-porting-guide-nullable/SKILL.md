@@ -10,12 +10,12 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # Nullable guide
 
-Written for re-scale **0.1.5** (check `re-scale --version`). re-scale itself
+Written for re-scale **0.2.0** (check `re-scale --version`). re-scale itself
 ships no `Nullable` type: each project picks one, usually an allocation-free
 opaque type with `Option`-like extension methods (for example
 `lowlevel.Nullable` from [lls](https://github.com/kubuszok/lls), or a plain

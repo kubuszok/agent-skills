@@ -9,12 +9,12 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # Verification checklist
 
-Written for re-scale **0.1.5** (check `re-scale --version`). Run after every
+Written for re-scale **0.2.0** (check `re-scale --version`). Run after every
 conversion, in this order; stop and fix at the first failure.
 
 | # | Check | Command | Pass when |

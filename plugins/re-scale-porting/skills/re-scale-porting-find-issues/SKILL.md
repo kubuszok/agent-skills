@@ -9,12 +9,12 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # Find issues
 
-Written for re-scale **0.1.5** (check `re-scale --version`).
+Written for re-scale **0.2.0** (check `re-scale --version`).
 
 ## Procedure
 
@@ -65,7 +65,7 @@ Matched only inside comments: `stub-comment`, `simplified-comment`,
 `would-be-used`, `handled-below`, `for-now-comment`, `break-comment`,
 `return-comment`, `would-do-comment`, `aspirational-com`.
 
-Source: [Shortcuts.scala at 0.1.5](https://github.com/kubuszok/re-scale/blob/0.1.5/src/main/scala/rescale/enforce/Shortcuts.scala).
+Source: [Shortcuts.scala at 0.2.0](https://github.com/kubuszok/re-scale/blob/0.2.0/cli/src/main/scala/rescale/enforce/Shortcuts.scala).
 
 ## Notes
 

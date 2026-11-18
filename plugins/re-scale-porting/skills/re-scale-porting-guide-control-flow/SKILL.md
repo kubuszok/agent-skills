@@ -10,12 +10,12 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # Control-flow guide
 
-Written for re-scale **0.1.5** (check `re-scale --version`). re-scale projects
+Written for re-scale **0.2.0** (check `re-scale --version`). re-scale projects
 ban `return`, and Scala has no `break`/`continue`, so every early exit becomes
 `scala.util.boundary` + `boundary.break`.
 

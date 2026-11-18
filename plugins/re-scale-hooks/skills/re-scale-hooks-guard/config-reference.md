@@ -1,10 +1,10 @@
-# `.rescale/claude-hooks.yaml` reference (re-scale 0.1.5)
+# `.rescale/claude-hooks.yaml` reference (re-scale 0.2.0)
 
 Checked against
-[RuleConfig.scala](https://github.com/kubuszok/re-scale/blob/0.1.5/src/main/scala/rescale/hook/RuleConfig.scala)
+[RuleConfig.scala](https://github.com/kubuszok/re-scale/blob/0.2.0/cli/src/main/scala/rescale/hook/RuleConfig.scala)
 and
-[RuleEvaluator.scala](https://github.com/kubuszok/re-scale/blob/0.1.5/src/main/scala/rescale/hook/RuleEvaluator.scala)
-at 0.1.5.
+[RuleEvaluator.scala](https://github.com/kubuszok/re-scale/blob/0.2.0/cli/src/main/scala/rescale/hook/RuleEvaluator.scala)
+at 0.2.0.
 
 ## Document
 

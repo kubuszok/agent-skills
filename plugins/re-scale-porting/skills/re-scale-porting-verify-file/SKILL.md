@@ -9,12 +9,12 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # Verify one file
 
-Written for re-scale **0.1.5** (check `re-scale --version`). Input: the path of
+Written for re-scale **0.2.0** (check `re-scale --version`). Input: the path of
 the ported Scala file (`$ARGUMENTS` in a slash command).
 
 ## Procedure

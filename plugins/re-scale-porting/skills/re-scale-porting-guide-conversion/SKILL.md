@@ -10,12 +10,12 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # Conversion guide
 
-Written for re-scale **0.1.5** (check `re-scale --version`). Load this with
+Written for re-scale **0.2.0** (check `re-scale --version`). Load this with
 `re-scale-porting-guide-nullable`, `re-scale-porting-guide-control-flow` and
 `re-scale-porting-guide-code-style`. The project's own type-mapping document (package
 renames, replacement collections, error types, context parameters) overrides
