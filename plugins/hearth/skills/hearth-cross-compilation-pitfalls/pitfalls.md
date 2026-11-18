@@ -122,3 +122,21 @@ if (Type[A] =:= Type.of[Nothing] || Type[A] =:= Type.of[Any])   // =:= accepts a
 ## 24. Commas in `-Xmacro-settings`
 
 **Both.** Scala 2 and Scala 3 both split `-Xmacro-settings:a=1,b=2` on commas into separate settings, so a value cannot contain `,` (the tail loses its `lib.` prefix). Separate list items with `|` (as Hearth's own `hearth.cross-quotes.logging` does) or `;`, or pass several `-Xmacro-settings` options. Also note that `Environment.typedSettings` parses every setting of every library into one tree and is `Left` if any two conflict (`a=1` and `a.b=2`, or a key given twice) - report that `Left` instead of silently ignoring your settings.
+
+## 25. Scala 2 quotes are not hygienic
+
+**Scala 2.** Names of `val`s declared inside `Expr.quote` are used as written. When a spliced expression refers to a
+quoted variable of the same name, the expansion captures it:
+
+```scala
+Expr.quote {
+  cursor.asObject match {
+    case Right(obj) => Expr.splice(readField(Expr.quote(obj)))  // the outer `obj`
+  }
+}
+// with readField(objExpr) = Expr.quote { val obj = Expr.splice(objExpr); ... }
+// Scala 2 expands it to `val obj = obj` -> "recursive value obj needs type" at the user's derivation site
+```
+
+Scala 3 renames the binders and compiles the same code, so the bug only shows up in the Scala 2.13 build (often only
+for some shapes, e.g. fields with defaults). Give quoted local `val`s and the variables you splice in distinct names.

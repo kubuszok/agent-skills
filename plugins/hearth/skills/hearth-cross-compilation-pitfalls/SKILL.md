@@ -57,6 +57,8 @@ A symptom-first index of things that bite when one Hearth macro serves Scala 2.1
 | 24 | macro call in a generic helper sees abstract `A` | both | [concrete types](pitfalls.md#22-macros-need-concrete-types-at-the-call-site) |
 | 25 | `Type` pattern with backticks never matches | Scala 3 | [Type equality](pitfalls.md#23-type-equality) |
 | 26 | list-valued `-Xmacro-settings` value loses its tail / prefix | both | [commas in settings](pitfalls.md#24-commas-in--xmacro-settings) |
+| 27 | `recursive value x needs type` / `recursive val` at the user's call site | Scala 2 | [names are not hygienic](pitfalls.md#25-scala-2-quotes-are-not-hygienic) |
+| 28 | `object XRuleImpl is not a member of package ...` (`note: trait XRuleImpl exists, but it has no companion object`) | Scala 2 | [macro-internal types in quotes](pitfalls.md#3-macro-internal-values-inside-exprquote) |
 
 ## Reference
 
