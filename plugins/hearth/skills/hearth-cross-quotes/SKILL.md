@@ -2,7 +2,7 @@
 name: hearth-cross-quotes
 description: >-
   Hearth Cross Quotes for Scala 2.13 + Scala 3 macros - Expr.quote, Expr.splice, Type.of, Type.Ctor1.of / Type.CtorN
-  (apply, unapply, setA, setLast, fromUntyped), Type.Lazy, passQuotes / withQuotes / withMacroEntryCtx for native
+  (apply, unapply, setA, setB, fromUntyped), Type.Lazy, passQuotes / withQuotes / withMacroEntryCtx for native
   Scala 3 quotes, and fixes for their errors - "forward reference to value", "':' expected but identifier found",
   errors at `<macro>:line:col`, "not found: value ..." from path-dependent `Underlying` types, "free type variable",
   ScopeException "different Quotes context" / "Expression created in a splice was used outside of that splice",
@@ -61,11 +61,11 @@ def analyze[In: Type]: Expr[String] = Type[In] match {
 }
 ```
 
-- `Type.CtorN.of` exists for N = 1..22; `.apply[A]` builds `Type[F[A]]` (needs `Type[A]` in scope), `.unapply` decomposes (also subtypes, via the base type). Bounded variants: `Type.Ctor1.UpperBounded.of[U, F]`, `Type.Ctor1.Bounded.of[L, U, F]`.
-- Partial application: `Type.Ctor2.of[Either].setA[String]` (=> `Ctor1[Either[String, *]]`), `.setLast[Int]`; apply several from the **back** (`setC`, then `setB`, then `setA`) so names stay stable.
+- `Type.CtorN.of` exists for N = 1..22; `.apply[A]` builds `Type[F[A]]` (needs `Type[A]` in scope), `.unapply` decomposes (also subtypes, via the base type, on both Scala versions). Bounded variants: `Type.Ctor1.UpperBounded.of[U, F]`, `Type.Ctor1.Bounded.of[L, U, F]`.
+- Partial application: `Type.Ctor2.of[Either].setA[String]` (=> `Ctor1[Either[String, *]]`), `.setB[Int]` (=> `Ctor1[Either[*, Int]]`). Setters are named by parameter letter (`setA`, `setB`, `setC`, ...; there is no `setLast`, although older docs show it); apply several from the **back** (`setC`, then `setB`, then `setA`) so the letters stay stable.
 - Untyped interop: `ctor.asUntyped`, `Type.Ctor1.fromUntyped[F](untyped)`; unknown constructors: `Type.decompose1[A]` (see `hearth-hkt-derivation`).
 - Compare types with `=:=`/`<:<`, never with `==` or backtick patterns: Scala 3 `Type`s do not override `equals`, so ``case `stringType` =>`` works on 2.13 and silently fails on 3.
-- **Helper `Type`s in fields:** an eager `val X = Type.of[X]` is computed on every expansion; a plain `lazy val` is unsafe on Scala 3 (bound to the first splice that forces it). Use `Type.Lazy`:
+- **Helper `Type`s in fields:** an eager `val X = Type.of[X]` is computed on every expansion, and is safe only because of *when* the enclosing object initializes (an object first touched inside an `Expr.splice` behaves like a `lazy val`); a plain `lazy val` is unsafe on Scala 3 (bound to the first splice that forces it). Use `Type.Lazy`:
 
 ```scala
 private val StringType: Type.Lazy[String] = Type.Lazy(Type.of[String])
@@ -93,20 +93,20 @@ Do not write `implicit val evA: Type[A] = Type.of[A]` for such an abstract `A` -
 - Each `Expr.splice` opens its own nested `Quotes`. An `Expr` created inside one splice must not be used in a sibling splice of the same quote ("Expression created in a splice was used outside of that splice", under `-Xcheck-macros`). For multi-method instances derive everything **before** the outer quote and call cached `def`s by name from each splice - see `hearth-def-caching`.
 - Store results of builders (`LambdaBuilder...build`, `ValDefBuilder`) in a **`def`**, not a `val`, when they are later spliced into another `Expr.quote`; a `val` captures the outer `Quotes`. Same for `mio.unsafe.runSync` results.
 - Native `'{...}`/`${...}` in a Scala 3-only macro that also uses Hearth builders: wrap each quote with `withQuotes { ... }` and each splice body with `passQuotes { ... }`. Not needed with Cross Quotes.
-- Memoizing an `Expr` across splices (Scala 3-only code): `withMacroEntryCtx(expr)` builds it with the entry `Quotes`; in cross-compiled code use `Type.Lazy`/`Type.Cache` instead.
+- Memoizing an `Expr` across splices (Scala 3-only code): `withMacroEntryCtx(expr)` builds it with the entry `Quotes`. In cross-compiled code do not memoize `Expr`s across splices: produce them from a `def` (re-evaluated per splice), or derive everything before the outer quote and call cached defs (`hearth-def-caching`). Keep helper `Type`s in `Type.Lazy`; `Type.Cache` is safe across splices only because it recomputes per splice scope.
 
 ## Gotchas
 
-- **`forward reference to value X defined on line N extends over definition of value Y`** -> `implicit val t: Type[A] = Type.of[A]` makes the native summoner pick up the val being defined (older Hearth / abstract `A`). Since Hearth 0.4.0 (kubuszok/hearth#285) the defined val is excluded for statically-known types; otherwise compute it in a scope without the implicit: `private val AType = Type.of[A]` then `implicit val t: Type[A] = AType`, or take `[A: Type]`.
+- **`forward reference to value X defined on line N extends over definition of value Y`** -> `implicit val t: Type[A] = Type.of[A]` makes the native summoner pick up the val being defined (older Hearth / abstract `A`). Since Hearth 0.4.0 (kubuszok/hearth#285) the defined val is excluded for statically-known types (fully for fields of objects/classes on Scala 2 since 0.4.4; sibling `implicit val` fields forcing each other on Scala 3 fixed in 0.4.1); otherwise compute it in a scope without the implicit: `private val AType = Type.of[A]` then `implicit val t: Type[A] = AType`, or take `[A: Type]`.
 - **`':' expected but identifier found`** around `companionExpr_??: Expr_??` -> identifier ending with `?`/symbol char followed by `:` -> add a space: `companionExpr_?? : Expr_??`.
 - **Scala 2 error at `.../<macro>:row:col`** (e.g. `expected ")" but found identifier`) -> the error is in the quasiquote Cross Quotes generated by printing your quote. Simplify that quote: move logic out, split nested blocks, call a runtime helper, avoid exotic syntax; enable logging (below) to see the generated source; report a minimal reproducer to kubuszok/hearth.
 - **Expansion fails with generated code mentioning `someValue.Underlying`** / Scala 2 **`not found: value param`** -> a path-dependent type (`import param.tpe.Underlying as Field`) used inside a quote was not substituted. Move the quote into a helper with a regular type parameter: `def mk[F: Type](e: Expr[F]): Expr[...] = Expr.quote { ... }` and call `mk[Field](...)`. Report it if a plain context bound does not help.
 - **`??`/`Expr_??` inside `Expr.quote`** (Scala 2 reification failures, e.g. `Option[MyImpl.this.??]`) -> compute the value in a `val` before the quote.
 - **Scala 2 `object Trees is not a member of package scala.reflect.api`** with refined/structural types built in nested quotes -> construct the value in a runtime helper method and call it from the quote.
 - **"is never used" warnings for implicit `Type`s needed only by a quote** (fatal under `-Xfatal-warnings`) -> put them in a named `def` annotated `@scala.annotation.nowarn("msg=is never used")`.
-- **`Install cross-quotes-plugin to use this method`** -> plugin missing on Scala 3.
+- **`Install cross-quotes-plugin to use this method`** (compile error in the Scala 3 macro module, from `@compileTimeOnly`) -> plugin missing on Scala 3.
 - **Scala 3 plugin rewrites syntactically**: it assumes `Type`, `Expr`, `Expr.quote` are the `MacroCommons` ones. Mixing `scala.quoted.Type.of`/`'{}` with Cross Quotes in one file, or your own `quote`/`splice` methods, is undefined behaviour (often a compiler crash).
-- **Type aliases / kind-projector in `Type.CtorN.of`** are not supported on Scala 2 -> use the full constructor and `setA`/`setLast`.
+- **Type aliases / kind-projector in `Type.CtorN.of`** are not supported on Scala 2 -> use the full constructor and `setA`/`setB`/... (applied from the back).
 - **`Type.CtorN.UpperBounded.of`/`Bounded.of` `.unapply` ignores the bounds** (open issue kubuszok/hearth#400) -> check `<:<` on the extracted types yourself.
 - Hearth before 0.4.1 broke `val List = Type.Ctor1.of[List]` (value named like the type) on Scala 2 - prefer distinct names (`ListCtor`) anyway.
 
@@ -114,12 +114,12 @@ Do not write `implicit val evA: Type[A] = Type.of[A]` for such an abstract `A` -
 
 ```scala
 // Scala 3
-scalacOptions += "-P:hearth.cross-quotes:logging=true"           // or a comma-separated list of files
+scalacOptions += "-P:hearth.cross-quotes:logging=true"           // or a |-separated list of files
 // Scala 2.13
 scalacOptions += "-Xmacro-settings:hearth.cross-quotes.logging=true"
 ```
 
-Prints how each quote was rewritten while compiling the macro library. Clean before recompiling, incremental compilation does not re-run it for unchanged files.
+Instead of `true` you can pass a `|`-separated list of `File.scala`, `File.scala:line` or `File.scala:line:col` (not a comma-separated one: the compiler splits `-Xmacro-settings` on commas). Prints how each quote was rewritten while compiling the macro library. Clean before recompiling, incremental compilation does not re-run it for unchanged files.
 
 ## Reference
 

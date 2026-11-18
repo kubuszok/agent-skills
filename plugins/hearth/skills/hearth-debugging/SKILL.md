@@ -36,7 +36,12 @@ Debug.withGivenASTInIDE[MyTC[Foo]]; Debug.withGivenTypeInIDE[MyTC[Foo]]
 import hearth.debug.DebugOps.*                     // expr.withFinalCodeInIDE etc. (Scala 2: DebugOps._)
 ```
 
-Output appears in compilation logs and as hover hints (Metals, IntelliJ, Scastie). These work for any macro, not only Hearth-based ones. Remove them before committing.
+Output appears in compilation logs and as hover hints (Metals, IntelliJ, Scastie). These work for any macro, not only Hearth-based ones - also for *users* of a macro library who want to see what it derived (they need only the `hearth` artifact; `hearth.debug` is compile-time only). Remove them before committing.
+
+- All of them return their argument, so they can wrap an expression in place. `withGiven*[T]` return the summoned value (a drop-in for `implicitly[T]`); when no implicit exists they fail compilation with the implicit-search failure reason - a quick way to see *why* an implicit is missing.
+- `DebugOps` adds only the three expression-taking methods (`withFinalCodeInIDE`, `withFinalASTInIDE`, `withInferredTypeInIDE`).
+- On Scala 3, `Debug.withFinalCodeInIDE` inside an `inline def` body shows the inlined code at each call site.
+- Output goes through `reportInfo`, so only the first info per position is shown: one `Debug` call per expression position.
 
 ## Log the derivation (for you and your users)
 
@@ -60,9 +65,9 @@ if (Environment.isExpandedAt("MySpec.scala:42")) {      // or "MySpec.scala:42:1
 }
 ```
 
-- Only the **first** `reportInfo` and the first `reportWarn` per position are shown; aggregate into one message. Scala 2 shows only the first `reportError` per position, Scala 3 all.
-- Columns differ: `Foo.bar` expands at column of `bar` on Scala 2 and of `Foo` on Scala 3.
-- Printers: `expr.prettyPrint`/`plainPrint` (code), `expr.prettyAST`/`plainAST` (tree), `Type[A].prettyPrint`/`plainPrint`. `pretty*` use ANSI colours (logs only); `plain*` for tests and keys.
+- Only the **first** `reportInfo` per position is shown (do not rely on repeated warnings either); aggregate into one message. Scala 2 shows only the first `reportError` per position, Scala 3 all.
+- Hearth normalizes `currentPosition.column` (and `isExpandedAt`) to the first letter of the macro method name for instance and imported calls, but for a prefixed call `MyObject.macroMethod(...)` Scala 3 reports the column of `MyObject` while Scala 2 reports `macroMethod`; `File.scala:line` (no column) is the robust filter.
+- Printers: `expr.prettyPrint`/`plainPrint` (code), `expr.prettyAST`/`plainAST` (tree), `Type[A].prettyPrint`/`plainPrint`. `pretty*` use ANSI colours (logs only); `plain*` for tests and keys. Standalone printers for macros not built on Hearth: [printers.md](printers.md).
 
 ## Compile-time performance: flame graphs
 
@@ -71,11 +76,11 @@ if (Environment.isExpandedAt("MySpec.scala:42")) {      // or "MySpec.scala:42:1
 -Xmacro-settings:hearth.mioBenchmarkFlameGraphDir=/tmp/flames
 ```
 
-Each expansion run through `runToExprOrFail` writes a `.speedscope.json` (open at https://www.speedscope.app) with one frame per `Log.namedScope`; rendered logs get durations. Typical findings: repeated `loadStandardExtensions`, re-derived types (missing caching), expensive `prettyPrint` in eagerly built messages. A timeout (`Macro 'X' timed out after ...ms`) also writes the graph and logs collected so far.
+Each expansion run through `runToExprOrFail` writes a `.speedscope.json` (open at https://www.speedscope.app) with one frame per `Log.namedScope`; rendered logs get durations. Typical findings: repeated `loadStandardExtensions`, re-derived types (missing caching), expensive `prettyPrint` in eagerly built messages. Files are named `<file>_<line>_<col>_<macroName>.speedscope.json`; both settings are needed. A timeout (`Macro 'X' timed out after ...ms`) also writes the graph and the logs collected so far, rendered at the `warnRendering` level (pass `warnRendering = RenderFrom(Log.Level.Info)` to see info logs on timeout).
 
 ## Cross Quotes rewrite
 
-`-P:hearth.cross-quotes:logging=true` (Scala 3) / `-Xmacro-settings:hearth.cross-quotes.logging=true` (Scala 2), or a comma-separated list of file names instead of `true`, prints the native code each `Expr.quote` became when compiling the macro library. Scala 2 errors at `<macro>:line:col` come from that generated code - see `hearth-cross-quotes`.
+`-P:hearth.cross-quotes:logging=true` (Scala 3) / `-Xmacro-settings:hearth.cross-quotes.logging=true` (Scala 2), or a `|`-separated list of `File.scala` / `File.scala:line` / `File.scala:line:col` instead of `true` (not commas: the compiler splits settings on commas), prints the native code each `Expr.quote` became when compiling the macro library. Scala 2 errors at `<macro>:line:col` come from that generated code - see `hearth-cross-quotes`.
 
 ## Compiler flags worth knowing
 
@@ -98,11 +103,11 @@ final class MyTCSpec extends hearth.MacroSuite {
 }
 ```
 
-`==>` for equality, `<==>` for `String`/`hearth.data.Data` with diffs. A fixture macro returning `Expr[hearth.data.Data]` checks many properties in one expansion. Test unsupported types (aggregated error text), user-instance-wins, recursive types, both Scala versions.
+More (`ScalaCheckSuite`, `ignoreOnScala3`-style test filters, the `Data` API): `hearth-testing`. `==>` for equality, `<==>` for `String`/`hearth.data.Data` with diffs. A fixture macro returning `Expr[hearth.data.Data]` checks many properties in one expansion. Test unsupported types (aggregated error text), user-instance-wins, recursive types, both Scala versions.
 
 ## Gotchas
 
-- **No output at all** -> nothing re-expanded (clean), or info rendering is `DontRender`, or a previous `reportInfo` at the same position consumed the slot.
+- **No output at all** -> nothing re-expanded (clean), or info rendering is `DontRender`, or a previous `reportInfo` at the same position consumed the slot (including the `Extension ... was already loaded in this macro expansion` infos from a second `loadStandardExtensions()` call).
 - **`println` output missing** -> build servers (sbt client, Bloop, Metals) do not forward it; use `reportInfo`/logs.
 - **Logs only on failure** -> pass the same `RenderFrom(Log.Level.Info)` for `infoRendering` when the switch is on.
 - **Users cannot debug** -> the error message must say how to enable logging and list reasons per rule/field, not only "cannot derive".

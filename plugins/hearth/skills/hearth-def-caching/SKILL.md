@@ -23,13 +23,15 @@ Generate each case-class/enum body once as a local `def` (and each summoned impl
 ## API
 
 ```scala
-val cache: MLocal[ValDefsCache] = ValDefsCache.mlocal          // shared across parallel MIO branches
+val cache: MLocal[ValDefsCache] = ValDefsCache.mlocal          // shared across parallel MIO branches; `mlocal` is a def -
+                                                               // call it ONCE per expansion and pass this value everywhere
 
 val defB = ValDefBuilder.ofDef1[A, String](s"show_${Type[A].shortName}", "value") // def show_Foo(value: Foo): String
 val lazyB = ValDefBuilder.ofLazy[Show[A]](s"instance_${Type[A].shortName}")       // lazy val instance_Foo: Show[Foo]
 
-cache.forwardDeclare(key, defB)                     // MIO[Unit]: callable before its body exists (recursion)
-cache.buildCachedWith(key, defB) { case (self, valueArg) => body } // MIO[Unit]; body: Expr[String] from the def's own param
+cache.forwardDeclare(key, defB)                     // MIO[Unit]: callable before you START building it (optional)
+cache.buildCachedWith(key, defB) { case (self, valueArg) => body } // MIO[Unit]; forward-declares itself, so recursive
+                                                    // calls inside `body` already resolve; body: Expr[String] from the def's own param
 cache.get1Ary[A, String](key)                       // MIO[Option[Expr[A] => Expr[String]]] - builds a call by name
 cache.get0Ary[Show[A]](key)                         // for vals / lazy vals
 defB.isBuilt(cacheSnapshot, key)                    // Boolean, on a snapshot from cache.get
@@ -37,6 +39,8 @@ cacheSnapshot.toValDefs.use(_ => resultExpr)        // { def ...; lazy val ...; 
 ```
 
 `ofDefN` takes the def name prefix then optional parameter name prefixes (strings convert to `FreshName`); names are made fresh automatically. Entries are keyed by `(key, argument Types, return Type)` compared with `=:=`, so one constant key like `"cached-show"` serves every type `A` as long as the signature mentions `A`.
+
+Every forward-declared entry must be built before `toValDefs`, otherwise it fails with `Definitions were forward declared, but not built`.
 
 ## Single-method derivation with recursion
 
@@ -48,8 +52,7 @@ def deriveRecursively[A: Ctx]: MIO[Expr[String]] = {
     case None =>
       val defB = ValDefBuilder.ofDef1[A, String](s"show_${Type[A].shortName}", "value")
       for {
-        _ <- ctx[A].cache.forwardDeclare(key, defB)
-        _ <- MIO.scoped { runSafe =>
+        _ <- MIO.scoped { runSafe =>   // buildCachedWith forward-declares the def, so recursion inside resolves to a call
                runSafe(ctx[A].cache.buildCachedWith(key, defB) { case (_, value) =>
                  runSafe(deriveViaRules[A](using ctx[A].nest(value))) // body uses the def's OWN parameter
                })
@@ -67,7 +70,7 @@ Leaf types (primitives, types with a user implicit) need no def - inline them an
 
 Each `Expr.splice` in `Expr.quote { new TC[A] { def m1 = splice(...); def m2 = splice(...) } }` gets its own `Quotes` on Scala 3; deriving inside them and sharing results fails with `ScopeException: Expression created in a splice was used outside of that splice`. Recipe:
 
-1. Run **all** derivation before the quote (in the outer `MIO.scoped` block), with **one** shared `ValDefsCache.mlocal`; each method body becomes a cached def (`forwardDeclare` + `buildCachedWith`).
+1. Run **all** derivation before the quote (in the outer `MIO.scoped` block), with **one** shared `ValDefsCache.mlocal`; each method body becomes a cached def (`buildCachedWith`, which forward-declares it).
 2. Derive independent method bodies in parallel with `parTuple` so users see errors of all of them at once.
 3. Get the call builders with `getNAry`, snapshot the cache, and wrap the **whole** instance expression with `toValDefs.use`.
 4. Splices contain only calls to those builders - name references, valid in any `Quotes`.
@@ -97,19 +100,20 @@ Generated shape: `{ def hash_Foo(value: Foo): Int = ...; def eqv_Foo(x: Foo, y: 
 
 ## Gotchas
 
-- **`HearthRequirementError: buildCachedWith('key'): key+signature already built`** -> building the same key+signature twice (e.g. two fields of the same type) -> check `defB.isBuilt(snapshot, key)` (or `getNAry` returning `Some`) first and reuse.
+- **`buildCachedWith('key'): key+signature already built`** (a `HearthRequirementError`, `NonFatal`, so it reaches your `runToExprOrFail` failure renderer as an MIO error starting with `Hearth requirement failed:`) -> building the same key+signature twice (e.g. two fields of the same type) -> check `defB.isBuilt(snapshot, key)` (or `getNAry` returning `Some`) first and reuse.
+- **`Definitions were forward declared, but not built`** at `toValDefs` -> a `forwardDeclare`d key was never built (e.g. a rule failed or took another path) -> build every declared key, or do not forward-declare it.
 - **Scala 2 `not found: value x$macro$12`** -> the def body references a value bound by the wrapping quote / outer ctx, but defs are emitted outside it -> pass that value as a def parameter (bump `ofDefN` arity) and build a fresh ctx from the def's params inside `buildCachedWith`.
 - **`ScopeException` on Scala 3** -> derivation still runs inside a splice of a multi-method quote -> hoist it before the quote (recipe above).
 - **Cached `lazy val`s re-initialized on every call / slow instances** -> `toValDefs.use` wraps only one method body (defs become locals of that method) -> wrap the entire instance expression.
 - **"private method ... is never used" warnings / duplicated defs** -> `toValDefs.use` called per method, each copy containing all defs -> one `toValDefs.use` around the whole result.
-- **Cache key collisions** -> different types sharing a key with an erased signature (`Any => Any`) overwrite each other -> include the type in the key (`s"decode:${Type[B].plainPrint}"`), never `prettyPrint` (ANSI colours differ for the same type read from source vs classpath, so recursion is missed).
+- **Cache key collisions** -> different types sharing a key with an erased signature (`Any => Any`) collide: `buildCachedWith` fails with "already built", or `getNAry` returns the other type's def -> include the type in the key (`s"decode:${Type[B].plainPrint}"`), never `prettyPrint` (ANSI colours differ for the same type read from source vs classpath, so recursion is missed).
 - **Exponential compile time** with many repeated field types -> types re-derived instead of cached; make sure every structural rule goes through the cache and the cache is shared (`ValDefsCache.mlocal` is shared across `parTraverse`/`parTuple` branches by design).
 - **`parTuple` and your own state** -> `MLocal(initial)(fork)(join)` values are forked per branch, so a branch never sees the other's writes; derive sequentially when one derivation reads state another writes (e.g. a decoder body and a schema of the same value).
 - **`Method too large` / 64KB** -> large ADTs inlined into one expression -> every case class / enum body as its own def; a single huge case class may still need splitting (e.g. per-field defs).
 
 ## `ValDefs` for local vals/vars
 
-`ValDefs.createVal[A](expr, "name")`, `createVar[A](init, "name")` (gives `(getter, setter)`), `createLazy`, `createDef`; compose with `map2`/`parMap2`/`traverse` and finish with `.use { refs => Expr[B] }`. Use typed `createVar`s instead of an `Array[Any]` when accumulating decoded fields (no boxing).
+`ValDefs.createVal[A](expr, "name")`, `createVar[A](init, "name")` (gives `(getter, setter)`), `createLazy`, `createDef`; compose with `map2`/`tuple`/`traverse`/`sequence` (or direct style) and finish with `.use { refs => Expr[B] }`. `ValDefs` has no `Parallel` instance, so `parMap2`/`parTraverse` do not compile on it. More in `hearth-expr-toolkit`. Use typed `createVar`s instead of an `Array[Any]` when accumulating decoded fields (no boxing).
 
 ## Reference
 

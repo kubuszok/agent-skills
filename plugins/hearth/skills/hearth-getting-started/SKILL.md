@@ -71,7 +71,9 @@ def scalacPluginMvnDeps = // only in the Scala 3 cross module
 //> using plugin com.kubuszok::hearth-cross-quotes::0.4.5
 ```
 
-The plugin is needed **only** when Scala 3 code uses Cross Quotes (`Expr.quote`, `Expr.splice`, `Type.of`, `Type.CtorN.of`). Without it they compile but the macro throws `Install cross-quotes-plugin to use this method` when expanded.
+The plugin is needed **only** when Scala 3 code uses Cross Quotes (`Expr.quote`, `Expr.splice`, `Type.of`, `Type.CtorN.of`, `Type.CtorK1.of`, `Type.CtorN.UpperBounded.of`/`Bounded.of`). Without it, compiling the Scala 3 macro module fails with `Install cross-quotes-plugin to use this method` (a `@compileTimeOnly` error) at every such call. On Scala 2.13 it is not a compiler plugin: Cross Quotes arrive as macros through `hearth`, so do not add it there.
+
+**Minimum Scala version of your users.** Hearth runs on Scala 2.13.16+ and 3.3 LTS+, but `summonExprIgnoring`/`Expr.summonImplicitIgnoring` (used to stop a derivation from summoning itself, see `hearth-type-class-derivation`) needs **Scala 2.13.17+ / 3.7.0+** in the module where the macro expands, and throws on older compilers. Decide the supported Scala versions before designing the macro.
 
 ## Project structure
 
@@ -177,26 +179,27 @@ In shared code use **Cross Quotes** (`Expr.quote { ... Expr.splice(e) ... }`, `T
 ```scala
 import hearth.*                 // MacroCommons, ...
 import hearth.fp.effect.*       // MIO, Log, MLocal, RenderFrom, DontRender, ...
-import hearth.fp.instances.*    // Applicative/Parallel/Traverse instances (List, Option, MIO, ...)
+import hearth.fp.instances.*    // Applicative/Parallel/Traverse instances (List, Option, Either, ...; MIO's are in its companion)
 import hearth.fp.syntax.*       // .traverse, .parTraverse, .parMap2, ...
 import hearth.std.*             // StdExtensions, Rule, Rules, ProviderResult, StandardMacroExtension
 ```
 
-`Type`, `Expr`, `Method`, `CaseClass`, `Environment`, ... are members of `MacroCommons` (available inside the trait with `this: MacroCommons =>`), not top-level imports.
+`Type`, `Expr`, `Method`, `CaseClass`, `Environment`, ... are members of `MacroCommons` (available inside the trait with `this: MacroCommons =>`), not top-level imports. `Environment.loadStandardExtensions()` and `IsCollection`/`IsOption`/... additionally need `StdExtensions` in the self-type (`this: MacroCommons & StdExtensions =>`). Non-MIO type classes and `NonEmptyList`/`NonEmptyVector`/`NonEmptyMap`: see `hearth-micro-fp`.
 
 ## Testing macros
 
-`hearth-munit` provides `hearth.Suite` (`group`, `==>`, `<==>` with diffs) and `hearth.MacroSuite` (`compileErrors("code").check("expected text")`, `.checkNot(...)`, `.arePresent()`). Test every supported shape on **both** Scala versions, error messages for unsupported types, that user-provided implicits win, and recursive types. A fixture macro returning `Expr[hearth.data.Data]` lets one expansion assert many properties.
+`hearth-munit` provides `hearth.Suite` (`group`, `==>`, `<==>` with diffs) and `hearth.MacroSuite` (`compileErrors("code").check("expected text")`, `.checkNot(...)`, `.arePresent()`). Test every supported shape on **both** Scala versions, error messages for unsupported types, that user-provided implicits win, and recursive types. A fixture macro returning `Expr[hearth.data.Data]` lets one expansion assert many properties. Details: `hearth-testing`.
 
 ## Gotchas
 
-- **`Install cross-quotes-plugin to use this method`** (Scala 3, at expansion) -> the `hearth-cross-quotes` plugin is missing from the Scala 3 macro module -> add it as `compilerPlugin`/`scalacPluginMvnDeps`/`//> using plugin`.
-- **Plugin added with `%%%` or to Scala 2.13** -> resolution fails or nothing happens -> add it only for Scala 3, as a JVM artifact (`%%`).
-- **`macro implementation not found` / "cannot use macro in the same compilation unit"** -> macro and its call site compile together -> move the call to tests or a dependent module.
+- **`Install cross-quotes-plugin to use this method`** (Scala 3, when compiling the macro module) -> the `hearth-cross-quotes` plugin is missing from the Scala 3 macro module -> add it as `compilerPlugin`/`scalacPluginMvnDeps`/`//> using plugin`.
+- **Plugin added with `%%%`** -> resolution fails (the Scala 3 plugin is published for the JVM only) -> add it only for Scala 3, as a JVM artifact (`%%`). On Scala 2.13 do not add it at all.
+- **`HearthRequirementError: Expr.summonImplicitIgnoring on Scala 2 relies on c.inferImplicitValueIgnoring method, which is available since Scala 2.13.17`** (or `... on Scala 3 relies on Implicits.searchIgnoring method, which is available since Scala 3.7.0`) -> the code expanding the macro is compiled with an older Scala -> raise the minimum Scala version of the library, or branch on `Environment.currentScalaVersion`.
+- **Macro used where it is defined** -> Scala 2: `macro implementation not found: ... (the most common reason for that is that you cannot use macro implementations in the same compilation run that defines them)`; Scala 3: `Cannot call macro ... defined in the same source file` -> move the call to tests or a dependent module.
 - **Scala 2.13 parse errors on `import x.{Underlying as T}` or `A & B`** -> add `-Xsource:3` (or use `=>`/`with`).
 - **Scala 3: `ScopeException ... different Quotes context`** with native quotes -> use `passQuotes`/`withQuotes` or Cross Quotes.
 - **Kindlings' helpers are not Hearth.** `DerivationTimeout`, `DerivationPolicy`, `ensureStandardExtensionsLoaded`, `LoadStandardExtensionsOnce` come from Kindlings' internal `derivation-commons`; in your library use the Hearth APIs they wrap (`runToExprOrFail(timeout = ...)`, `Environment.loadStandardExtensions()`, `Environment.typedSettings`).
-- **Fat JARs**: most of Hearth runs only inside the compiler; keep `hearth.source`, `hearth.typename` and the classes directly in package `hearth` if you strip it. Check the FAQ of your Hearth version before excluding anything.
+- **Fat JARs**: most of Hearth runs only inside the compiler. Keep `hearth.source`, `hearth.typename`, the classes directly in package `hearth`, and `hearth.data` if production code uses `Data`; everything else is compile-time only. See `hearth-runtime-utilities` (fat-jar.md) and the FAQ section "Which parts of Hearth end up in my application at runtime?" (in the [latest docs](https://scala-hearth.readthedocs.io/en/latest/faq/); added after 0.4.5).
 
 ## Reference
 
@@ -205,4 +208,5 @@ import hearth.std.*             // StdExtensions, Rule, Rules, ProviderResult, S
 - Runnable cross-compiled demo: [hearth-tests demo `Show`](https://github.com/kubuszok/hearth/tree/0.4.5/hearth-tests/src/main/scala/hearth/demo/simple).
 - Real libraries built on Hearth 0.4.5: [Kindlings 0.4.0](https://github.com/kubuszok/kindlings/tree/0.4.0) (derivation modules, `di`, `mock`, `optics`, `parser`, integrations).
 - Before shipping: see the `hearth-macro-review` skill (production-readiness checklist).
-- Next steps: `hearth-cross-quotes`, `hearth-type-class-derivation`, `hearth-case-classes-and-enums`, `hearth-def-caching`, `hearth-standard-extensions`, `hearth-hkt-derivation`, `hearth-expr-parsing-dsl`, `hearth-cross-compilation-pitfalls`, `hearth-debugging`, `hearth-generated-code-performance`, `hearth-lambda-builder`.
+- Next steps: `hearth-cross-quotes`, `hearth-type-class-derivation`, `hearth-case-classes-and-enums`, `hearth-def-caching`, `hearth-standard-extensions`, `hearth-introspection`, `hearth-expr-toolkit`, `hearth-micro-fp`, `hearth-hkt-derivation`, `hearth-expr-parsing-dsl`, `hearth-cross-compilation-pitfalls`, `hearth-debugging`, `hearth-testing`, `hearth-generated-code-performance`, `hearth-lambda-builder`.
+- Using Hearth's runtime utilities (`TypeName`, `hearth.source`, versions) in ordinary code: `hearth-runtime-utilities`.

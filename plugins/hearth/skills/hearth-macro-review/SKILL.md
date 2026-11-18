@@ -113,18 +113,19 @@ The full items, with how to verify each one, are in [checklist.md](checklist.md)
 **Correctness**
 - Every type category the macro claims to support is tested:
   - built-in and primitive types;
-  - `Option`, collections, maps (`IsMap` checked before `IsCollection`);
+  - `Option`, `Either` (`IsEither`), collections, maps (`IsMap` checked before `IsCollection`);
   - value types (`AnyVal`), opaque types, named tuples, tuples;
   - case classes (0, 1 and many fields; default values; generic);
-  - sealed hierarchies, Scala 3 enums, Java enums, case objects;
+  - sealed hierarchies, Scala 3 enums, Java enums, case objects, Scala 3 union types (if claimed);
   - Java Beans;
-  - recursive types, types read from another compilation unit, generic call sites.
+  - recursive types, type-parametric types, types read from another compilation unit, generic call sites.
 - Macro extensions work: the standard extensions are loaded once per expansion, providers are used instead of
   hard-coded types, and an integration on the classpath (e.g. a Cats `NonEmptyList` provider) is tested.
 - The configuration is tested: every option, its default, and invalid values.
 - Implicits:
   - user instances override the generated logic;
-  - the macro never summons its own auto-derivation (`summonExprIgnoring`);
+  - the macro never summons its own auto-derivation (`summonExprIgnoring`, which needs Scala 2.13.17+ / 3.7.0+ -
+    check that the library's documented minimum Scala versions meet it);
   - `implicit val x: TC[A] = TC.derived[A]` does not pick itself up;
   - recursion goes through the macro's internal cache (`ValDefsCache` `def`s), not implicit search;
   - Scala 3 `derives` on a generic type does not mis-derive type parameters such as `String`.

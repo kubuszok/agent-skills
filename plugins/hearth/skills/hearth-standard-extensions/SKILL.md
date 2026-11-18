@@ -30,13 +30,13 @@ Shared shape interfaces - `IsCollection`, `IsMap`, `IsOption`, `IsEither`, `IsVa
 Environment.loadStandardExtensions().toMIO(allowFailures = false) // MIO[...]; fails with all loading errors
 ```
 
-Calling it again in the same expansion re-registers nothing but scans the classpath again and emits `Extension ... was already loaded in this macro expansion, skipping re-initialization` info messages. If several entry points share a bundle (codec = encoder + decoder), guard it with a `private var loaded = false` in the bundle class, or load at the single top-level entry.
+Calling it again in the same expansion re-applies nothing, but emits one `Extension ... was already loaded in this macro expansion, skipping re-initialization` info message per extension - and since only the first info per position is shown, that hides your rendered derivation log. If several entry points share a bundle (codec = encoder + decoder), guard it with a `private var loaded = false` in the bundle class, or load at the single top-level entry.
 
 3. Match in this order (rule order matters, see `hearth-type-class-derivation`):
 
 ```scala
 Type[A] match {
-  case _ if Type[A].isNamedTuple => ...                   // Scala 3 single-field named tuples are opaque types
+  case _ if Type[A].isNamedTuple => ...                   // Scala 3 named tuples are opaque types (any arity)
   case IsValueType(vt) =>
     import vt.{Underlying as Inner, value as isVT}        // isVT.unwrap(expr): Expr[Inner]; isVT.wrap: CtorLikeOf[Inner, A]
     ...
@@ -76,7 +76,7 @@ Because `String` and `Option` are also `IsCollection`s, primitives/built-ins and
 
 ## Diagnosing a non-match
 
-- `IsCollection.parse[A]` returns `ProviderResult.Matched(v)` or `ProviderResult.Skipped(reasons)` (reasons per provider: `Left(throwable)` = provider failed, `Right(() => message)` = declined; in 0.4.5 the message is a lazy thunk).
+- `IsCollection.parse[A]` returns `ProviderResult.Matched(v)` or `ProviderResult.Skipped(reasons: NonEmptyMap[String, Either[Throwable, () => String]])` keyed by provider name: `Left(throwable)` = provider failed, `Right(() => message)` = declined (a lazy thunk since 0.4.1).
 - After failed `unapply`s, `IsCollection.lastUnapplyFailure` (also `IsOption`, `IsEither`, `IsValueType`, `IsMap`) holds the reasons (`null` if the last match succeeded).
 - After a match, `IsValueType.lastMatchProvenance: Option[ProviderProvenance]` tells which provider matched (`isBuiltIn`).
 
@@ -90,7 +90,7 @@ See [writing-providers.md](writing-providers.md): a `StandardMacroExtension` reg
 - **`String` encoded as an array of chars** -> missing built-in rule before the collection rule.
 - **`(name: String)` named tuple treated as a `String` wrapper** -> `IsValueType` matched it; guard with `Type[A].isNamedTuple` (always `false` on Scala 2).
 - **Nothing matches at all** -> `Environment.loadStandardExtensions()` was not run in this expansion (no providers registered).
-- **Third-party provider never used** -> missing/incorrect `META-INF/services/hearth.std.StandardMacroExtension`, the module is not on the *compile* classpath of the code expanding the macro, or a higher-priority provider (e.g. the opaque-type one) wins - check `lastMatchProvenance`.
+- **Third-party provider never used** -> missing/incorrect `META-INF/services/hearth.std.StandardMacroExtension`, the module is not on the *compile* classpath of the code expanding the macro, or an earlier provider wins. Higher `priority` is tried first; built-ins are at 0, equal priorities keep discovery order, and the opaque-type provider is at -1000 (it loses to everything at 0). Give yours `priority > 0` only if it must beat a built-in - check `lastMatchProvenance`.
 - **`ProviderResult` is not an `Option`** -> no `.orElse`; use `unapply` patterns or `.toOption`.
 - **`Type[Key]`/`Type[Item]` not found inside `Expr.quote`** -> import the members of the matched value (`import isMap.{Key, Value, CtorResult}`, `import c.Underlying as Item`).
 - **Validation silently skipped** -> `wrap`/`build` returned `EitherStringOrValue` and only `PlainValue` was handled.

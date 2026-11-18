@@ -10,7 +10,8 @@ pass happy-path tests. Each entry gives the symptom, the cause, and what the cor
    - **Cause:** the macro summons `TC[Field]`, and implicit search finds the macro's own `derived` (or the parent
      library's auto-derivation), which expands the macro again.
    - **Correct:** `Type[TC[B]].summonExprIgnoring(<own auto-derivation methods>, <parent library auto methods>)`.
-     Recurse through the internal cache.
+     Recurse through the internal cache. `summonExprIgnoring` needs Scala 2.13.17+ / 3.7.0+ where the macro expands
+     and throws on older compilers - a library supporting 2.13.16 or 3.3 LTS cannot rely on it.
 2. **Recursion by implicit search instead of the cache.**
    - **Symptom:** recursive types need `lazy val`, `Lazy`, or user-defined instances. Errors lose the path.
    - **Correct:** walk the type internally, and use `ValDefsCache` `def`s keyed by type.
@@ -38,17 +39,19 @@ pass happy-path tests. Each entry gives the symptom, the cause, and what the cor
 
 7. **`IsCollection` checked before `IsMap`.** A `Map` is an `Iterable`, so maps get encoded as sequences of pairs.
    Check `IsMap` first.
-8. **`IsValueType` without a named-tuple guard (Scala 3).** A single-element named tuple `(field: Int)` is an opaque
-   type and matches `IsValueType`. Guard it with `if (Type[A].isNamedTuple)` before the value-type match.
+8. **`IsValueType` without a named-tuple guard (Scala 3).** Named tuples are opaque types (any arity), which the
+   opaque-type `IsValueType` provider may match. Guard it with `if (Type[A].isNamedTuple)` before the value-type match.
 9. **`isInstanceOf` on parameterless Scala 3 enum cases.**
    - **Symptom:** an "unchecked type test" warning at every expansion site, which breaks `-Werror`. Users cannot
      suppress it with `@nowarn` in their own source.
-   - **Correct:** match singletons with `SingletonValue` and compare with `eq`.
+   - **Correct:** use `Enum[A].matchOn`, which emits `case x @ EnumValue` (via `MatchCase.eqValue`) for parameterless
+     enum cases and Java enums, or `MatchCase.eqValue` / `Expr.singletonOf[A]` with `eq` in hand-written code.
 10. **Hard-coded `List`/`Option`/`Map`.** Matching on concrete types instead of `IsCollection`/`IsOption`/`IsMap`
     silently ignores every integration module (Cats collections, refined, iron, newtypes).
 11. **Standard extensions loaded never, or on every rule call.**
     - Never loaded: integrations do nothing.
-    - Loaded on every call: compilation slows down and the log is noisy.
+    - Loaded on every call: compilation slows down, and the "already loaded" info message from the second call takes
+      the single info slot, so the derivation log is not shown.
     - **Correct:** load them once per expansion behind a guard.
 12. **`ProviderResult` treated as an `Option`.** Provider results carry the reasons why a provider did not match.
     Keep them, so errors can explain the skipped providers.
@@ -78,11 +81,11 @@ pass happy-path tests. Each entry gives the symptom, the cause, and what the cor
 18. **Error messages without a path or a reason.** A message like "Cannot derive TC for A" is not actionable. Name
     the field or subtype path, what was tried, and how to enable the derivation log.
 19. **`println` debugging left in, or `Environment.reportInfo` called several times.** Only the first `reportInfo`
-    per expansion is shown. Use `Log` with named scopes and render the log once.
+    per position is shown, on both Scala 2 and 3. Use `Log` with named scopes and render the log once.
 20. **The timeout left at the default.** `runToExprOrFail` uses a 2-second timeout by default. It is not
     configurable unless you expose it, and it fails builds on slow CI machines.
-21. **Comma-separated list settings.** Scala 3 splits `-Xmacro-settings` values on commas and Scala 2 does not.
-    Use `;` or `|` as separators.
+21. **Comma-separated list settings.** Both Scala 2 and Scala 3 split `-Xmacro-settings` values on commas.
+    Use `|` or `;` as separators.
 
 22. **`runToExprOrFail` called more than once, or nested.**
     - Run the `MIO` program once, at the entry point.
@@ -93,22 +96,23 @@ pass happy-path tests. Each entry gives the symptom, the cause, and what the cor
 24. **Settings keys without a namespace.** `-Xmacro-settings` are visible to every macro on the classpath. Prefix
     every key with the library name (`mylib.logDerivation`).
 25. **`prettyPrint` evaluated eagerly in logs and skip reasons.** Rendering types costs time on every expansion. Pass
-    messages by-name (`Log.info(...)` already takes a by-name argument), and use `skippedLazily` for provider skip
-    reasons.
+    messages by-name (`Log.info(...)` already takes a by-name argument, but `Log.namedScope(name)` does not), and use
+    `skippedLazily` for provider skip reasons.
 
 ## Quoting traps
 
 26. **Path-dependent or existential values used inside `Expr.quote`.** For example `x.Underlying` from an extractor,
     or a `??`/`Expr_??` taken apart inside the quote. Destructure outside the quote: `import x.Underlying as B`, or
     a helper method with a type parameter `[B: Type]`. Splice only fully typed values.
-27. **`implicit val A: Type[A] = Type.of[A]` for an abstract `A`.** It resolves to itself or to a meaningless type.
-    Take the `Type` from the macro's type parameter or from a decomposition (`CaseClass`, `Is*` extractors), never by
-    re-summoning it.
+27. **`implicit val A: Type[A] = Type.of[A]` for an abstract `A`.** It fails to compile (there is no `Type[A]` to
+    materialize it from; older Hearth resolved it to the val itself). Take the `Type` from the macro's type parameter
+    or from a decomposition (`CaseClass`, `Is*` extractors). For a concrete type (`Type.of[Foo]`) it is fine.
 28. **Builder results stored in `val`s and spliced into a different quote on Scala 3.** Each quote has its own
     scope. Rebuild inside the quote, or call a cached `def` by name.
-29. **Casting the `Expr` outside the quote.** `expr.asInstanceOf[Expr[B]]` lies to the macro. Cast inside the
-    generated code (`Expr.quote { Expr.splice(expr).asInstanceOf[B] }`) or use `upcast` when widening is enough.
-    Do not pass `Expr[Any]` where a constructor expects concrete argument types.
+29. **Casting the `Expr` without proof.** `expr.asInstanceOf[Expr[B]]` is fine only after the type was proven (`=:=`/
+    `<:<`, an extractor match, a `CaseClass`/`Is*` decomposition). Otherwise cast inside the generated code
+    (`Expr.quote { Expr.splice(expr).asInstanceOf[B] }`) or use `upcast` when widening is enough. Do not pass
+    `Expr[Any]` where a constructor expects concrete argument types.
 30. **Comparing `Type`s with `==` or a backticked pattern.** Use `=:=` (or `<:<`). Structural equality of type
     representations is not type equality.
 31. **Witness types used as lambda parameter types in erased HKT derivation (Scala 3).** These produce a

@@ -32,28 +32,30 @@ Same for element types from `Type.CtorN.unapply` and for `IsValueType`/`IsCollec
 
 Symptoms: `forward reference to value ...`, Scala 3 `Infinite loop in function body`, `null` `Type` at runtime.
 
-Fix: `[A: Type]` context bounds; `Type.of` in a separate object/scope (`object Types { def ShowOf[A: Type] = Type.of[Show[A]] }`) then `implicit val s: Type[Show[A]] = Types.ShowOf[A]`; non-implicit `val`s passed explicitly; inside splices pass `Type.of[A]` directly as the argument. In a Scala 3 provider do not `import platformCommons.{*, given}`.
+Abstract `X` fails to compile (no `Type[X]` to materialize it from). Fix: `[A: Type]` context bounds; `Type.of` in a separate object/scope (`object Types { def ShowOf[A: Type] = Type.of[Show[A]] }`) then `implicit val s: Type[Show[A]] = Types.ShowOf[A]`; non-implicit `val`s passed explicitly; inside splices pass `Type.of[A]` directly as the argument. In a Scala 3 provider do not `import platformCommons.{*, given}`.
 
 ## 5. Self-summoning (`summonExprIgnoring`)
 
 **Both.** Searching for `TC[A]` with plain `summonImplicit` finds your own `implicit def derived`/`inline given` (or a parent library's auto-derivation), expanding the macro inside itself: hangs, `OutOfMemoryError`, diverging implicits. With `implicit val tc: TC[X] = TC.derived[X]` it can also find `tc` itself -> runtime `null`/StackOverflowError.
 
-Fix: `Type[TC[A]].summonExprIgnoring(ignored*)` with `ignored = Type.of[TC.type].unsortedMethods.collect { case m if m.name == "derived" => m.asUntyped }` (plus the parent library's derivation methods), and skip the search for the root type in the `derived` entry point.
+Fix: `Type[TC[A]].summonExprIgnoring(ignored*)` with `ignored = Type.of[TC.type].unsortedMethodsNamed("derived").map(_.asUntyped)` (plus the parent library's derivation methods), and skip the search for the root type in the `derived` entry point.
+
+**Version requirement:** `summonExprIgnoring`/`Expr.summonImplicitIgnoring` needs Scala **2.13.17+ / 3.7.0+** in the module where the macro expands. On older compilers (incl. 2.13.16 and 3.3 LTS) it throws `HearthRequirementError: Expr.summonImplicitIgnoring on Scala 2 relies on c.inferImplicitValueIgnoring method, which is available since Scala 2.13.17` (Scala 3: `... Implicits.searchIgnoring method, which is available since Scala 3.7.0`). Either raise the library's minimum Scala version (Kindlings requires 2.13.18 / 3.8), or check `Environment.currentScalaVersion` and, on older compilers, avoid having an auto-derivation implicit that a plain `summonExpr` could find (e.g. make `derived` non-implicit there). Hearth has no ignoring search for older compilers.
 
 ## 6. Extractor and rule order
 
-**Both / Scala 3.** `Map <: Iterable` so `IsCollection` matches maps -> check `IsMap` first. `String` and `Option` are also `IsCollection`s -> built-ins and options before collections. Scala 3 single-field named tuples (`(name: String)`) are opaque types that the built-in opaque `IsValueType` provider unwraps -> guard the value-type rule with `if (Type[A].isNamedTuple)` (always `false` on Scala 2). Singletons are rejected by `CaseClass.parse` -> singleton rule before the case-class rule.
+**Both / Scala 3.** `Map <: Iterable` so `IsCollection` matches maps -> check `IsMap` first. `String` and `Option` are also `IsCollection`s -> built-ins and options before collections. Scala 3 named tuples are opaque types (for every arity), which the built-in opaque-type `IsValueType` provider may unwrap -> guard the value-type rule with `if (Type[A].isNamedTuple)` (always `false` on Scala 2). Singletons are rejected by `CaseClass.parse` -> singleton rule before the case-class rule.
 
 ## 7. Scala 3 parameterless enum cases and `isInstanceOf`
 
-**Scala 3.** Generated `y.isInstanceOf[E.A]` for `enum E { case A, B }` warns "the type test for E.A cannot be checked at runtime" **at the user's call site** (fatal with `-Werror`; `@nowarn` in macro sources does not help): parameterless cases are erased to `E`. Affects code comparing two values (Eq, Order, diffs). Fix: `SingletonValue.unapply(Type[Child])` and compare with `eq` against `sv.singletonExpr`; keep `isInstanceOf` only for case-class children.
+**Scala 3.** Generated `y.isInstanceOf[E.A]` for `enum E { case A, B }` warns "the type test for E.A cannot be checked at runtime" **at the user's call site** (fatal with `-Werror`; `@nowarn` in macro sources does not help): parameterless cases are erased to `E`. Affects code comparing two values (Eq, Order, diffs). Hearth's own `Enum.matchOn`/`parMatchOn` already avoid it (they emit `case x @ EnumValue` via `MatchCase.eqValue` for parameterless enum cases and Java enums). Only hand-written type tests need a fix: `SingletonValue.unapply(Type[Child])` / `Expr.singletonOf[Child]` and compare with `eq` (or `MatchCase.eqValue`); keep `isInstanceOf` only for case-class children.
 
 ## 8. Phantom type parameters
 
 **Both.** A type param not constrained by arguments is inferred as `Nothing` on Scala 2 and `Any` on Scala 3. Guard at the entry point:
 
 ```scala
-if (Type[A] =:= Type.of[Nothing].asInstanceOf[Type[A]] || Type[A] =:= Type.of[Any].asInstanceOf[Type[A]])
+if (Type[A] =:= Type.of[Nothing] || Type[A] =:= Type.of[Any])   // =:= accepts any Type[B], no cast needed
   Environment.reportErrorAndAbort(s"type parameter inferred as ${Type[A].prettyPrint}; pass it explicitly")
 ```
 
@@ -99,7 +101,7 @@ if (Type[A] =:= Type.of[Nothing].asInstanceOf[Type[A]] || Type[A] =:= Type.of[An
 
 ## 19. `MacroExtension` with intersection types
 
-**Both.** `MacroExtension[A & B & C]` keeps only `A` in its `ClassTag`, so applicability checks are wrong. Extend `MacroExtension[MacroCommons & StdExtensions]` (or `StandardMacroExtension`) and match `ctx` against your trait inside `extend`.
+**Both.** `MacroExtension[A & B & C]` checks `ctx` against a single erased class (the `ClassTag` of the intersection keeps only one component), so applicability checks are wrong. Extend `MacroExtension[MacroCommons & StdExtensions]` (or `StandardMacroExtension`) and match `ctx` against your trait inside `extend`.
 
 ## 20. Arrays need a `ClassTag`
 
@@ -107,7 +109,7 @@ if (Type[A] =:= Type.of[Nothing].asInstanceOf[Type[A]] || Type[A] =:= Type.of[An
 
 ## 21. Errors inside generated quasiquotes
 
-**Scala 2.** Errors located at `<macro>:line:col` ("expected ")" but found ...", `not found: value rassoc$1`) come from the quasiquote Cross Quotes printed from your quote. Enable `-Xmacro-settings:hearth.cross-quotes.logging=true` (or a file list) to see it, simplify the quote (fewer nesting levels, logic in helpers/runtime methods, avoid deep right-associative chains), and report a minimal reproducer to kubuszok/hearth.
+**Scala 2.** Errors located at `<macro>:line:col` ("expected ")" but found ...", `not found: value rassoc$1`) come from the quasiquote Cross Quotes printed from your quote. Enable `-Xmacro-settings:hearth.cross-quotes.logging=true` (or a `|`-separated file list) to see it, simplify the quote (fewer nesting levels, logic in helpers/runtime methods, avoid deep right-associative chains), and report a minimal reproducer to kubuszok/hearth.
 
 ## 22. Macros need concrete types at the call site
 
@@ -116,3 +118,7 @@ if (Type[A] =:= Type.of[Nothing].asInstanceOf[Type[A]] || Type[A] =:= Type.of[An
 ## 23. `Type` equality
 
 **Scala 3.** `scala.quoted.Type` does not override `equals`; `==`, `Set[Type[?]]`, `Map` keys and backtick patterns misbehave (they work on Scala 2, hiding the bug). Use `=:=`/`<:<`, `Type.Cache`, or `plainPrint` keys.
+
+## 24. Commas in `-Xmacro-settings`
+
+**Both.** Scala 2 and Scala 3 both split `-Xmacro-settings:a=1,b=2` on commas into separate settings, so a value cannot contain `,` (the tail loses its `lib.` prefix). Separate list items with `|` (as Hearth's own `hearth.cross-quotes.logging` does) or `;`, or pass several `-Xmacro-settings` options. Also note that `Environment.typedSettings` parses every setting of every library into one tree and is `Left` if any two conflict (`a=1` and `a.b=2`, or a key given twice) - report that `Left` instead of silently ignoring your settings.

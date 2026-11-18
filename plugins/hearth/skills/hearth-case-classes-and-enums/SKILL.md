@@ -53,7 +53,10 @@ Simplest: `construct`/`parConstruct` with one callback per constructor parameter
 cc.parConstruct[MIO] { param =>
   import param.tpe.Underlying as Field
   decodeField[Field](param.name).map(_.as_??)            // MIO[Expr_??]; must be an Expr of the param's type
-}  // MIO[Option[Expr[A]]] - None when the constructor is not accessible: report it as an error
+}  // MIO[Option[Expr[A]]] - None when the primary constructor is not public: report it as an error
+// This overload checks `Everywhere`; pass `CaseClass.ConstructField[MIO](...)` with `visibility = AtCallSite` to
+// allow e.g. `private[pkg]` constructors visible at the expansion site. An Expr_?? whose type is not a subtype of the
+// parameter type throws "Upcasting can only be done to type proved to be super type!" (not a failed MIO).
 ```
 
 When some arguments may be omitted (use default values) or you want an `Either` error instead of an exception, drive the constructor `Method` yourself; arguments are a `Map[String, Expr_??]`, omitted parameters with defaults use the default:
@@ -61,8 +64,8 @@ When some arguments may be omitted (use default values) or you want an `Either` 
 ```scala
 val args: Map[String, Expr_??] = Map("name" -> nameExpr.as_??)   // "age" has a default
 cc.primaryConstructor.fold(
-  onInstance = _ => sys.error("constructors need no instance"),
-  onTypes    = _ => Map.empty,   // let the compiler infer type arguments
+  onInstance = _ => sys.error("never called for constructors"),
+  onTypes    = _ => Map.empty,   // never called for constructors: class type arguments come from Type[A]
   onValues   = _ => args
 ) match {
   case Right(built) => import built.Underlying as R; built.value.upcast[A]   // R <:< A
@@ -70,7 +73,7 @@ cc.primaryConstructor.fold(
 }
 ```
 
-Arguments are type-checked: an `Expr[Any]` for an `Int` field is rejected - keep each field's own type (see the helper-method trick below). Update one field of an existing value with `cc.copyMethod()` (`Option[Method.OnInstance.Of[A]]`, `None` e.g. for `sealed abstract case class`): apply the instance, then only the changed arguments.
+Arguments are type-checked: an `Expr[Any]` for an `Int` field is rejected - keep each field's own type (see the helper-method trick below). Update one field of an existing value with `cc.copyMethod()` (`Option[Method.OnInstance.Of[A]]`): apply the instance, then (for a generic case class) the type arguments, then only the changed arguments, then `build()`. It is `None` for `sealed abstract case class`, vararg case classes, or an inaccessible `copy` (default `visibility = AtCallSite`).
 
 ## Annotations on fields and types
 
@@ -82,7 +85,7 @@ val renamed: Option[String] = param.annotationsOfType[fieldName].headOption
   .collect { case s: String => s }
 ```
 
-`Type[A].annotations`, `Type[A].typeAnnotations` (annotated types like `Int @ann`), `hasAnnotationOfType[Ann]`. `decodedConstructorArguments` evaluates with `semiEval`, so arguments must be literals/constants available on the classpath; it yields `Left(reason)` per argument it cannot evaluate.
+`Type[A].annotations`, `Type[A].typeAnnotations` (annotated types like `Int @ann`), `hasAnnotationOfType[Ann]`. `decodedConstructorArguments(ann): Option[List[Either[String, Any]]]` evaluates each argument with `semiEval` (literals, objects, constructor/method calls on the classpath). It gives `Left(reason)` per argument it cannot evaluate - including references to classes/objects of the module being compiled - and `None` if the annotation is not a constructor call. `Annotations.constructorArguments(ann)` gives the unevaluated `Expr_??`s.
 
 ## Singletons
 
@@ -104,14 +107,14 @@ Enum.parse[A].toEither match {
 }
 ```
 
-- Handles sealed traits/classes, Scala 3 `enum`s, Java enums, `scala.Enumeration` and (Scala 3) **disjoint** union types. `matchOn` is the fail-fast variant; `parMatchOn` aggregates errors from all children.
-- `enumm.directChildren: ListMap[String, ??<:[A]]` (immediate subtypes; nested sealed traits appear as one child), `enumm.exhaustiveChildren` (flattened leaves), `Type[A].directChildrenInOrder(ChildrenOrder.DeclarationWhenAvailable | ByName)` for a stable order. Names are keys - use them for discriminators.
-- For decoders, build the child from its name: iterate the children, use `SingletonValue.unapply` for singletons and the case-class path for the rest, and emit an `if`/`match` on the discriminator string (`MatchCase.eqValue(Expr(name))` + `MatchCase.matchOn`).
+- Handles sealed traits/classes, Scala 3 `enum`s, Java enums, `scala.Enumeration` and (Scala 3) union types whose members are distinguishable at runtime (or have a user-provided `scala.reflect.TypeTest`, see below). `matchOn` is the fail-fast variant; `parMatchOn` aggregates errors from all children.
+- `enumm.directChildren: ListMap[String, ??<:[A]]` (immediate subtypes; nested sealed traits appear as one child) is keyed by the subtype's **simple** name: same-named subtypes from different scopes collapse into one entry, and the key format changes to the full name in 0.5.0 - do not rely on it. `Type[A].directChildrenList` (`Option[List[(String, ??<:[A])]]`, since 0.4.1) keeps every child; `Type[A].directChildrenInOrder(ChildrenOrder.DeclarationWhenAvailable | ChildrenOrder.ByName)` gives a stable order. Derive discriminator names yourself (e.g. from the child type's name) instead of from the map keys. `enumm.exhaustiveChildren: Option[NonEmptyMap[String, ??<:[A]]]` (flattened leaves).
+- For decoders, build the child from its name: iterate the children, use `SingletonValue.unapply` for singletons and the case-class path for the rest, and emit a `match` on the discriminator string: one `MatchCase.eqValue(Expr(name))` per child plus a final `MatchCase.typeMatch[String]()` arm that reports the unknown discriminator (`MatchCase.matchOn` adds no default arm, so without it an unknown value is a runtime `MatchError`).
 - Unions whose members a class test cannot distinguish (`List[Int] | List[String]`) are accepted only with a user-provided `scala.reflect.TypeTest` per member; `Type[A].unionRefusalReason` tells the user which ones (use it in the error). On Scala 2 `isUnionType` is always `false`.
 
 ## Named tuples (Scala 3.7+)
 
-`NamedTuple.parse[A]` -> `nt.fields: List[(String, ??)]`, `nt.primaryConstructor`, `nt.construct[F](CaseClass.ConstructField[F](param => ...))`. `Type[A].isNamedTuple` is `false` on Scala 2. Put the named-tuple check **before** the value-type rule (single-field named tuples are opaque types that `IsValueType` would unwrap).
+`NamedTuple.parse[A]` -> `nt.fields: List[(String, ??)]`, `nt.primaryConstructor`, `nt.construct[F](CaseClass.ConstructField[F](param => ...))`. `Type[A].isNamedTuple` is `false` on Scala 2. Put the named-tuple check **before** the value-type rule (named tuples are opaque types, which the opaque-type `IsValueType` provider may unwrap).
 
 ## Gotchas
 
@@ -119,6 +122,7 @@ Enum.parse[A].toEither match {
 - **Scala 2 `not found: value param` / `value field`** -> `Field` from `import param.tpe.Underlying as Field` used inside `Expr.quote`. Move that quote into a method with a real type parameter: `def wrap[F: Type](e: Expr[F]): Expr[...] = Expr.quote(...)`.
 - **"Upcasting can only be done to type proved to be super type!"** -> `expr.upcast[B]` only widens; narrow with `.asInstanceOf[B]` inside `Expr.quote` (needs `Type[B]`).
 - **`MIO[Option[Expr[A]]]` ignored** -> `construct` returns `None` for an inaccessible constructor; turn it into a readable error (private constructor, private subtype).
+- **Two subtypes with the same simple name collapse into one** (e.g. `Outer.Green` and a top-level `Green`) -> `directChildren` keys by simple name -> use `directChildrenList` and build unambiguous names.
 - **Sealed trait with no children** -> `Enum.parse` is `Incompatible` ("has no direct children"); report it instead of generating an empty match.
 - **Child types of generic sealed traits** -> Hearth reapplies the parent's type arguments to children; do not reconstruct child types by name.
 - **Before Hearth 0.4.4, Scala 3 enum cases from `directChildren` summoned `Mirror.Sum`/had no `ValueOf`** (kubuszok/hearth#395) - upgrade if you summon `Mirror`/`ValueOf` for children.

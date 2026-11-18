@@ -67,6 +67,14 @@ or through `npx skills add`.
    follows the library version; use a `-N` suffix (e.g. `0.4.0-1`) for skill-only fixes between releases.
 4. Run `python3 scripts/validate.py` (also runs in CI) and, if available, `claude plugin validate .`.
 
+## Keeping skills in sync with the library
+
+The library repositories are the source of truth. Their agent instructions (e.g. Hearth's `AGENTS.md`, section "User
+documentation and agent skills") require every user-visible change to update the library's user docs and the
+matching skills here. Those skill changes are prepared on a branch of this repository and merged when the library
+version ships, together with the `metadata.library-version` and plugin version bumps above. When a skill and the
+library's docs disagree, check the library sources, fix the skill, and report (or fix) the docs.
+
 ## Adding a new library plugin
 
 1. Create `plugins/<lib>/` with both plugin manifests, a `README.md` and `skills/`.

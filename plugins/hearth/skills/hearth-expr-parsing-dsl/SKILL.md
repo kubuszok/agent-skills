@@ -45,7 +45,7 @@ DestructuredExpr.extractLambda(selector) match {
 }
 ```
 
-- Nodes: `MethodCall(method: Method, applied: List[Applied])` where `Applied` is `AppliedInstance(value)`, `AppliedTypes(typeArgs: List[??])`, `AppliedValues(args)`; plus `Lambda`, `Lambda.ParamRef`, `Literal(value)`, `Singleton`, `Block`, `ValDefinition`, `LocalReference`, `Import`, `LocalDefinition`, `Varargs`, `NonDestructurable`. Every node has `tpe: ??`, `toUntypedExpr`, `position`.
+- Nodes are plain classes without extractors, so match them with type patterns (`case mc: DestructuredExpr.MethodCall => mc.method / mc.applied / mc.receiver`): `MethodCall` (`method: Method`, `applied: List[MethodCall.Applied]`) where `Applied` is `AppliedInstance` (`.value`), `AppliedTypes` (`.typeArgs: List[??]`), `AppliedValues` (`.args: List[DestructuredExpr]`); plus `Lambda`, `Lambda.ParamRef`, `Literal(value)`, `Singleton`, `Block`, `ValDefinition`, `LocalReference`, `Import`, `LocalDefinition`, `Varargs`, `NonDestructurable`. Every node has `tpe: ??`, `toUntypedExpr`, `position`.
 - `mc.receiver` normalizes `implicit class` (`Ops(x).each`) and Scala 3 `extension` (`each(x)`) forms to `x`.
 - Implicit evidence and `using` arguments appear as extra `AppliedValues`; on Scala 3 an `extension [C] def when[T <: C]` has **two** `AppliedTypes` clauses - take the last one's last argument.
 - Context-function DSLs (`Ctx ?=> A => B`): `DestructuredExpr.skipContextualWrappers(node)` peels the contextual lambda / binding block (no-op on Scala 2).
@@ -84,14 +84,16 @@ AnonymousInstance.parse[A].toEither match {        // parseWithMixins[A](mixins:
   case Right(ai) =>
     val overrides: Map[UntypedMethod, OverrideBody] = ai.mustOverride.map { cm =>
       cm.method.asUntyped -> new OverrideBody {
-        def apply(octx: OverrideContext): Expr_?? = stubFor(octx) // octx.self, method, parameters, returnType, returnsThisType
+        def apply(octx: OverrideContext): Expr_?? = stubFor(octx) // octx.self, method, parameters, returnType, typeParameters, returnsThisType
       }
     }.toMap
+    // constructorArgs: arguments for the chosen constructor's parameters, by name; Map.empty only for a no-arg/all-default one
     ai.construct(constructor = ai.classParent.flatMap(_._2.headOption), constructorArgs = Map.empty, overrides = overrides) match {
       case Right(expr)  => expr
       case Left(errors) => Environment.reportErrorAndAbort(errors.toVector.mkString("\n"))
     }
-  case Left(reason) => Environment.reportErrorAndAbort(reason)  // final, sealed, inaccessible, 2+ class parents
+  case Left(reason) => Environment.reportErrorAndAbort(reason)  // final, sealed, inaccessible type, class parent without an
+                                                               // accessible constructor, 2+ class parents (parseWithMixins)
 }
 ```
 

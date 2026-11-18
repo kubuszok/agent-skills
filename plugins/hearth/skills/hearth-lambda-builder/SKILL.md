@@ -30,12 +30,12 @@ val inc: Expr[Int => Int] = LambdaBuilder.of1[Int]("a").buildWith(a => Expr.quot
 val mul: Expr[(Int, Int) => Int] =
   LambdaBuilder.of2[Int, Int]("a", "b").map { case (a, b) => Expr.quote(Expr.splice(a) * Expr.splice(b)) }.build
 
-// effectful body (aggregating errors of the derivation)
+// effectful body (the body's MIO errors and logs are kept; one body, so nothing to aggregate)
 def elementLambda[Item: Type](derive: Expr[Item] => MIO[Expr[String]]): MIO[Expr[Item => String]] =
   LambdaBuilder.of1[Item]("item").traverse(derive).map(_.build[String])
 ```
 
-`of1` ... `of22`; parameter names are prefixes (fresh names are generated).
+`of1` ... `of22`; parameter names are prefixes (fresh names are generated). `build[R]`/`buildWith` need an implicit `Type[R]` for the result type.
 
 ## The rule: collection / Option iteration only
 

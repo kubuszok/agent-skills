@@ -36,7 +36,7 @@ only to type class derivation. This checklist extends Hearth's
 **M5. Structured, lazy logging.**
 - **Check:** The derivation runs in `MIO`. Every rule attempt, match, yield, cache hit and recursive descent is
   wrapped in `Log.namedScope(...)` with `Log.info`/`Log.warn`. Messages are by-name, so they cost nothing when
-  logging is off. The log tells the whole story of an expansion without adding `println`s.
+  logging is off; `namedScope` names are strict `String`s, so they must not call `prettyPrint`. The log tells the whole story of an expansion without adding `println`s.
 - **Verify:** Count `Log.namedScope` uses per rule. Look for `println` or `Environment.reportInfo` used for
   debugging.
 
@@ -64,8 +64,11 @@ only to type class derivation. This checklist extends Hearth's
 - **Verify:** Find the settings parsing. Pass a wrong value in a test and check the message.
 
 **U2. Settings work on Scala 2 and Scala 3.**
-- **Check:** List-valued settings are not split on `,`. Scala 3 splits a single `-Xmacro-settings` option on commas;
-  Scala 2 does not. Use `;` or `|`, or separate options.
+- **Check:** List-valued settings are not split on `,`. Both Scala 2 and Scala 3 split `-Xmacro-settings` values on
+  commas, so a value cannot contain `,`. Use `|` (as Hearth's own `hearth.cross-quotes.logging` does) or `;`, or
+  separate options.
+- **Check:** A `Left` from `Environment.typedSettings` (any two settings of any library conflict) is reported, not
+  silently turned into "no settings" with `.toOption`.
 
 **U3. Preview of the generated code, on demand.**
 - **Check:** Users can see the derivation log and the final expression (pretty-printed) without editing the macro.
@@ -81,7 +84,8 @@ only to type class derivation. This checklist extends Hearth's
   - The documentation tells users how to profile expansion: `-Xmacro-settings:hearth.mioBenchmarkScopes=true` and
     `hearth.mioBenchmarkFlameGraphDir=<dir>`, which produce `.speedscope.json` flame graphs.
   - The `timeout` passed to `runToExprOrFail` (default 2 seconds) is configurable, e.g.
-    `<lib>.timeout=30s`, with a sensible default. On loaded CI machines a too-tight default turns into flaky
+    `<lib>.timeoutSeconds=30` read with `.asInt` (`30s` would parse as a `String` you must parse yourself), with a
+    sensible default. On loaded CI machines a too-tight default turns into flaky
     builds.
 
 **U5. Control over where derivation happens** *(derivation)*.
@@ -137,7 +141,8 @@ only to type class derivation. This checklist extends Hearth's
 **C2. Optional types.**
 - **Check:** The rule uses `IsOption` (not only `scala.Option`). The semantics are decided and tested: a missing
   field, an explicit `null`, a `None` with a default, a nested `Option[Option[A]]`, and an `Option` of a derived
-  type.
+  type. `Either`-like types go through `IsEither` (`Either`, `Try`, integrations such as Cats `Validated`) and are
+  tested if supported.
 
 **C3. Default values.**
 - **Check:** Case class defaults (including those depending on type parameters or on other parameters) are used or
@@ -149,8 +154,8 @@ only to type class derivation. This checklist extends Hearth's
   - `AnyVal` wrappers and opaque types (Scala 3) go through `IsValueType`, so wrap/unwrap is consistent and
     integrations (refined, iron, newtypes) work.
   - Smart-constructor failures are reported, not swallowed.
-  - The value-type rule is guarded with `Type[A].isNamedTuple` on Scala 3, because single-element named tuples
-    otherwise match `IsValueType`.
+  - The value-type rule is guarded with `Type[A].isNamedTuple` on Scala 3, because named tuples are opaque types
+    (for every arity) that the opaque-type `IsValueType` provider may match.
 
 **C5. Collections and maps.**
 - **Check:** `IsMap` is checked before `IsCollection`, since every `Map` is an `Iterable`. Arrays (which need a
@@ -168,6 +173,8 @@ only to type class derivation. This checklist extends Hearth's
   - Singletons go through `SingletonValue`.
   - The order of subtypes is deterministic on both Scala versions.
   - Subtypes with type parameters are handled.
+  - Scala 3 union types, if claimed: runtime-distinguishable members, and a clear error
+    (`Type[A].unionRefusalReason`) for members that need a user-provided `TypeTest`.
 
 **C8. Recursion.**
 - **Check:**
@@ -182,7 +189,8 @@ only to type class derivation. This checklist extends Hearth's
   - (a) A user-provided implicit for a nested type (and for the root, in inline mode) overrides the generated logic.
   - (b) Implicit search excludes the macro's own auto-derivation methods, plus the parent library's auto-derivation
     when the type class extends it. Use `Type[TC[A]].summonExprIgnoring(...)`. Otherwise you get infinite
-    expansion or a compiler OOM.
+    expansion or a compiler OOM. `summonExprIgnoring` throws on Scala older than 2.13.17 / 3.7.0: the library's
+    minimum Scala versions must meet that, or older versions need a different design.
   - (c) `implicit val tc: TC[A] = TC.derived[A]` does not resolve to itself, which compiles to `null` or a cycle.
   - (d) Recursion inside the derivation goes through the cache, not through implicit search.
   - (e) Summoned instances are cached as `lazy val`s.
@@ -195,8 +203,9 @@ only to type class derivation. This checklist extends Hearth's
 **C11. Macro extensions.**
 - **Check:**
   - The standard extensions are loaded once per macro expansion, through a single guarded call to
-    `Environment.loadStandardExtensions()`. Loading them on every rule invocation is slow and noisy; never loading
-    them means integrations are silently ignored.
+    `Environment.loadStandardExtensions()`. Loading them on every rule invocation re-scans providers and, from the
+    second call on, emits an "already loaded" compiler info that takes the single info slot per position, hiding the
+    rendered derivation log; never loading them means integrations are silently ignored.
   - Rules use `IsCollection`/`IsMap`/`IsOption`/`IsEither`/`IsValueType` instead of hard-coding `List`/`Map`/
     `Option`.
   - If the library offers its own extension point, its `MacroExtension` is discovered from the classpath and

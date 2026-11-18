@@ -27,7 +27,8 @@ import hearth.std.{ProviderResult, StandardMacroExtension, StdExtensions}
 
 final class MyValueTypeProviders extends StandardMacroExtension { loader =>
 
-  // Higher = registered (and matched) earlier. Hearth's opaque-type provider is -1000, default is 0.
+  // Higher = registered (and matched) earlier. Built-ins are 0 (the default), Hearth's opaque-type provider is -1000.
+  // Raise it above 0 only to beat a built-in provider (e.g. the AnyVal one, if mylib.Refined is a value class).
   override def priority: Int = 1000
 
   @scala.annotation.nowarn("msg=is never used")
@@ -68,7 +69,7 @@ final class MyValueTypeProviders extends StandardMacroExtension { loader =>
 }
 ```
 
-Collections implement `IsCollectionOf[A, E]` (`asIterable`, `type CtorResult` + `implicit val CtorResult: Type[CtorResult]`, `factory: Expr[Factory[E, CtorResult]]`, `build: CtorLikeOf[Builder[E, CtorResult], A]`, optionally `foreach`, `sizeHintForBuilder` only if O(1) and non-consuming) and are wrapped as `Existential[IsCollectionOf[A, *], E](...)`. A convenient `CtorResult` is `List[E]`, converted to the target (with a `Left` for invalid input, e.g. empty for a non-empty collection) in `build`. Map-like types also extend `IsMapOf[A, (K, V)]` (`Key`, `Value`, `key`, `value`, `pair`) and are registered on **`IsCollection`** - `IsMap` reads through it. Options: `IsOptionOf` (`empty`, `of`, `fold`, `getOrElse`, `orElse`); eithers: `IsEither` with `IsEitherOf`.
+Collections implement `IsCollectionOf[A, E]` (`asIterable`, `type CtorResult` + `implicit val CtorResult: Type[CtorResult]`, `factory: Expr[Factory[E, CtorResult]]`, `build: CtorLikeOf[Builder[E, CtorResult], A]`, optionally `foreach`, `sizeHintForBuilder` only if O(1) and non-consuming) and are wrapped as `Existential[IsCollectionOf[A, *], E](...)`. A convenient `CtorResult` is `List[E]`, converted to the target (with a `Left` for invalid input, e.g. empty for a non-empty collection) in `build`. Map-like types implement `IsMapOf[A, Pair]` (any pair type, e.g. `(K, V)` or `java.util.Map.Entry[K, V]`; members `Key`, `Value`, `key`, `value`, `pair`) and are registered on **`IsCollection`**, wrapped as `Existential[IsCollectionOf[A, *], Pair]` - `IsMap` reads through it via `asMap`. Options: `IsOptionOf` (`empty`, `of`, `fold`, `getOrElse`, `orElse`); eithers: `IsEither` with `IsEitherOf`.
 
 Inside `parse` only return `Matched` for a type you can actually build; decline with `skippedLazily(reason)` and report construction errors with `failed(throwable)`. Bottom types (`Nothing`/`Null`) are filtered out before providers run.
 
@@ -78,10 +79,10 @@ Inside `parse` only return `Matched` for a type you can actually build; decline 
 - **Runtime-helper pattern**: when a type cannot be written inside a Scala 2 quote (e.g. newtype aliases like Cats `NonEmptyChain` -> "not found: value data"), put the logic in a small runtime object taking/returning `Any` and only call it from the quote. Keep that object binary compatible (MiMa).
 - **Cast inside the quote, not outside**: `Expr.quote(helper(Expr.splice(v)).asInstanceOf[Iterable[E]])`, not `(Expr.quote(helper(...)): Expr[Any]).asInstanceOf[Expr[Iterable[E]]]` - Scala 3 `-Xcheck-macros` rejects trees whose type differs from the `Expr` type.
 - **Summon what construction needs** (e.g. `Ordering`/`Order[E]` for sorted types) in `parse` with `Expr.summonImplicit`, and decline with a reason when it is missing.
-- **Opaque types**: Hearth's opaque provider matches any opaque type with a companion constructor, so a provider adding validation for an opaque wrapper needs `priority` above `-1000`. On Scala 3 `Type.Ctor1.of[F].unapply` also handles subtypes of the constructor.
+- **Opaque types**: Hearth's opaque provider (priority -1000) matches any opaque type with a companion constructor, so a provider adding validation for an opaque wrapper already wins at the default priority 0. `Type.CtorN.of[F].unapply` also matches subtypes of the constructor (it reads the base type) on both Scala versions.
 - **Wrappers that are type members of an object** (`Foo.Type` newtypes): get the object with `Type.pseudoCompanionObject[A]`, read the wrapped type from its base type (`Type.Ctor1.of[Newtype].unapply`) or from a member's signature through the `Method` API, and check that signature mentions `A` itself.
 - **Avoid `Type.of[A]` bootstrap cycles**: never `implicit val X: Type[X] = Type.of[X]` where the only source would be that val; take `Type`s as explicit parameters (as in `mk`). Do not `import ctx3.{*, given}` of the platform commons in a Scala 3 provider - the plugin then rewrites `implicit val AT: Type[A] = tpe` into a self-reference ("Infinite loop in function body").
-- **Custom macro traits**: `MacroExtension[A & B & C]` keeps only the first component in its `ClassTag`; extend `MacroExtension[MacroCommons & StdExtensions]` and match `ctx` against your trait inside `extend`.
+- **Custom macro traits**: `MacroExtension[A & B & C]` checks `ctx` against a single erased class (the intersection's `ClassTag`), not all components; extend `MacroExtension[MacroCommons & StdExtensions]` and match `ctx` against your trait inside `extend`.
 - **Test** with a module that depends on your integration and on some Hearth-based derivation: encode, decode valid, decode invalid (validated wrappers, empty non-empty collections), round trip, and that a user-provided instance still wins.
 
 ## Reference implementations (Kindlings 0.4.0)

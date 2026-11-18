@@ -48,14 +48,14 @@ configExpr.semiEval match {               // Either[NonEmptyVector[String], Conf
 }
 ```
 
-`semiEval` handles literals, operators, objects/companion members on the classpath, constructor and method calls, lambdas without control flow, named/default args (and on Scala 3 local immutable vals, e.g. `inline` method arguments). It refuses members of the module being compiled, `var`s, `match`/`if` in lambda bodies.
+`semiEval` handles literals, operators, objects/companion members on the classpath, constructor and method calls, lambdas without control flow, named/default args (and on Scala 3 local immutable vals, e.g. `inline` method arguments). It refuses: definitions (`def`/`var`/`lazy val`/classes) inside the tree, `match` anywhere, lambdas whose body uses `match`/`if`/loops/`try`/`return`/assignments, lambdas of arity > 22 on Scala 2, `var`s, local vals on Scala 2, and **members of the module being compiled** - so a config object defined next to the call site (typical in tests) always takes the runtime fallback; test that path too. Details and overrides: `hearth-expr-toolkit`.
 
 ## 4. Avoid boxing and indirection
 
 - Accumulate decoded fields in typed locals: `ValDefs.createVar[Field](zero, "_name")` gives `(getter, setter)`; compose with `map2`/`traverse`, close with `.use { ... }` - no `Array[Any]`, no boxing of primitives.
 - Field loop without duplicating the dispatch: `var l = -1; while (l < 0 || reader.hasMore) { l = readKey(); /* dispatch once */ }` - duplicated dispatch chains double method size and defeat JIT inlining.
 - Built-in types: emit the direct call (`writer.writeVal(x.age)`) instead of calling a cached def or a summoned instance - but only when no user-provided implicit exists for that type (check with `summonExprIgnoring` first).
-- Collections: emit a `while` loop calling cached defs directly, or use `isColl.foreach(expr)(item => ...)` (zero-closure by default, array providers iterate by index) instead of runtime helpers taking a `Function1` per element; pre-size builders with `isColl.sizeHintForBuilder(expr)` (guard `>= 0`). Keep `LambdaBuilder` + helpers as a fallback.
+- Collections: emit a `while` loop calling cached defs directly, or use `isColl.foreach(expr)(item => ...)` (zero-closure by default, array providers iterate by index) instead of runtime helpers taking a `Function1` per element; pre-size builders with `isColl.sizeHintForBuilder(expr)` (`Option[Expr[Int]]`, `None` for single-pass sources; guard the runtime value with `>= 0`). Keep `LambdaBuilder` + helpers as a fallback.
 - Positional access when the format allows it (`record.put(0, v)` instead of by name); write keys known at compile time as constants.
 
 ## 5. Warning-free output
@@ -67,7 +67,9 @@ result.annotated[scala.annotation.nowarn]()                                     
 result.annotated[java.lang.SuppressWarnings](Expr.quote(scala.Array("org.wartremover.warts.All")).asUntyped)
 ```
 
-Also: `val _ = param` for lambda parameters a body may not use, avoid `isInstanceOf` on Scala 3 enum singletons (`hearth-case-classes-and-enums`), test the generated code under `-Xfatal-warnings` with many linters on both Scala versions.
+`annotated` needs implicit `Type`s for the annotation and the result (e.g. `implicit def nowarnType: Type[scala.annotation.nowarn] = Type.of[scala.annotation.nowarn]`).
+
+Also: `expr.suppressUnused` (or `val _ = param`) for lambda parameters a body may not use, avoid hand-written `isInstanceOf` on Scala 3 enum singletons - use `Enum[A].matchOn` / `MatchCase.eqValue`, which emit `case x @ EnumValue` (`hearth-case-classes-and-enums`), test the generated code under `-Xfatal-warnings` with many linters on both Scala versions.
 
 ## 6. Separate runtime helpers from generated code
 

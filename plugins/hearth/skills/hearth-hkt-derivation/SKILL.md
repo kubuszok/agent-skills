@@ -25,7 +25,8 @@ Deriving `TC[F[_]]` (e.g. `Functor[F]`) differs from `TC[A]`: methods have their
 // shared: trait FunctorMacrosImpl { this: MacroCommons & StdExtensions =>
 //   def deriveFunctor[F[_]](FCtor: Type.Ctor1[F]): Expr[cats.Functor[F]] = ... }
 
-// Scala 2 bundle: Type.Ctor1.of[F] reads the implicit WeakTypeTag[F[Any]] - keep that parameter (matched by name)
+// Scala 2 bundle: Type.Ctor1.of[F] needs an implicit c.WeakTypeTag[F[Any]] (or Type[F[Any]]) parameter on the
+// bundle method; it is found by the type constructor F, any value-parameter name works
 class FunctorMacros(val c: blackbox.Context) extends MacroCommonsScala2 with FunctorMacrosImpl {
   def deriveFunctorImpl[F[_]](implicit ft: c.WeakTypeTag[F[Any]]): c.Expr[cats.Functor[F]] =
     deriveFunctor[F](Type.Ctor1.of[F])
@@ -105,7 +106,7 @@ When rebuilding a case class with transformed fields, keep each field's own type
 - **`ClassCastException ... W1`** (Scala 3) -> witness type used as a direct lambda parameter type -> use `Any` there.
 - **`.asInstanceOf` is not fully erased**: the outer class is checked at runtime (`validated.asInstanceOf[Either[E, A]]` throws), only type arguments are erased.
 - **`Applicative[Any]` kind mismatch on Scala 3** -> use `type AnyF[X] = Any`.
-- **Scala 2 entry point cannot find `Type.Ctor1[F]`** -> the bundle method lacks `implicit ft: c.WeakTypeTag[F[Any]]`.
+- **`Type.Ctor1.of[F]: F is a type parameter of ..., so the type constructor it stands for is unknown here`** (Scala 2) -> the bundle method lacks `implicit ft: c.WeakTypeTag[F[Any]]`.
 - **Kind-projector / type lambdas** (`Either[String, *]`) cannot be passed as `F` to `Type.Ctor1.of` on Scala 2 -> build them with `Type.Ctor2.of[Either].setA[String]`.
 
 ## Reference
