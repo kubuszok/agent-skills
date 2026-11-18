@@ -35,6 +35,19 @@
         "pureconfig",
         "tapir"
       ]
+    },
+    {
+      "name": "sbt-kubuszok",
+      "source": "./plugins/sbt-kubuszok",
+      "description": "Skills for adopting the sbt-kubuszok sbt plugin: what it already configures (git versioning, Maven Central publishing, ci-release, scalafmt), build layout with projectType/Aliases/DevProperties, GitHub Actions CI and release workflows, and troubleshooting failed publishes.",
+      "category": "development",
+      "tags": [
+        "scala",
+        "sbt",
+        "sbt-plugin",
+        "publishing",
+        "github-actions"
+      ]
     }
   ]
 }
