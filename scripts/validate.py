@@ -125,6 +125,20 @@ def main() -> int:
     if plugin_dirs != set(claude_entries):
         err(f"plugins/ folders {sorted(plugin_dirs)} do not match marketplace entries {sorted(claude_entries)}")
 
+    skill_sets = ROOT / "skills"
+    for plugin in sorted(plugin_dirs):
+        link = skill_sets / plugin
+        if not link.is_symlink() or str(link.readlink()) != f"../plugins/{plugin}/skills":
+            err(f"skills/{plugin} must be a symlink to ../plugins/{plugin}/skills")
+        if (ROOT / "plugins" / plugin / "skills").is_symlink():
+            err(f"plugins/{plugin}/skills must be a real directory (Codex and Claude Code skip external symlinks)")
+    if skill_sets.exists():
+        extra_sets = {e.name for e in skill_sets.iterdir()} - plugin_dirs
+        if extra_sets:
+            err(f"skills/ has entries without a plugin: {sorted(extra_sets)}")
+    if not (ROOT / "CLAUDE.md").is_symlink():
+        err("CLAUDE.md must be a symlink to AGENTS.md")
+
     seen_skills: dict[str, str] = {}
     for plugin in sorted(plugin_dirs):
         pdir = ROOT / "plugins" / plugin

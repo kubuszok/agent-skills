@@ -67,7 +67,7 @@ codex plugin add kindlings@kubuszok
 ```
 
 In the TUI, `/plugins` lets you browse the marketplace. You can also install a single skill with the bundled
-`$skill-installer` skill. Give it a skill folder from this repository, e.g. `plugins/kindlings/skills/kindlings-circe`.
+`$skill-installer` skill. Give it a skill folder from this repository, e.g. `skills/kindlings/kindlings-circe`.
 
 ### GitHub Copilot CLI
 
@@ -89,7 +89,7 @@ Gemini CLI reads `.gemini/skills` and `.agents/skills`. The simplest way to inst
 
 ```bash
 # all skills of one plugin, for OpenCode, into the current project
-npx skills add https://github.com/kubuszok/agent-skills/tree/master/plugins/kindlings -a opencode
+npx skills add https://github.com/kubuszok/agent-skills/tree/master/skills/kindlings -a opencode
 
 # pick skills interactively, for several agents at once
 npx skills add kubuszok/agent-skills -a opencode -a gemini-cli -a codex
@@ -103,10 +103,10 @@ Add `-g` to install for your user instead of the project. Run `npx skills update
 Other options:
 
 - **OpenCode without `npx`**: clone this repository and add the plugin's skills folder to `opencode.json`:
-  `{ "skills": ["/path/to/agent-skills/plugins/kindlings/skills"] }`.
-- **Gemini CLI**: `gemini skills install https://github.com/kubuszok/agent-skills.git --path plugins/kindlings/skills/kindlings-circe`.
+  `{ "skills": ["/path/to/agent-skills/skills/kindlings"] }`.
+- **Gemini CLI**: `gemini skills install https://github.com/kubuszok/agent-skills.git --path skills/kindlings/kindlings-circe`.
 - **GitHub CLI**: `gh skill install kubuszok/agent-skills kindlings-circe --agent <agent>`.
-- **Manually**: copy (or symlink) `plugins/<plugin>/skills/*` into the skills directory of your agent.
+- **Manually**: copy (or symlink) `skills/<plugin>/*` into the skills directory of your agent.
   `.agents/skills/` in your project is read by most harnesses.
 
 ## Repository layout
@@ -114,6 +114,7 @@ Other options:
 ```
 .claude-plugin/marketplace.json   # Claude Code, Codex, Copilot CLI, npx skills
 .cursor-plugin/marketplace.json   # Cursor
+skills/<library>                  # symlink to plugins/<library>/skills - the plain skill set
 plugins/<library>/
   .claude-plugin/plugin.json
   .cursor-plugin/plugin.json

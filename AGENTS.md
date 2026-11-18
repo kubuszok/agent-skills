@@ -15,14 +15,20 @@ installed as `<plugin>@kubuszok`.
 ```
 .claude-plugin/marketplace.json     # read by Claude Code, Codex, Copilot CLI and `npx skills`
 .cursor-plugin/marketplace.json     # read by Cursor
+skills/<library> -> ../plugins/<library>/skills   # one symlink per skill set, for plain-skills consumers
 plugins/<library>/
   .claude-plugin/plugin.json        # read by Claude Code, Codex, Copilot CLI
   .cursor-plugin/plugin.json        # read by Cursor (same content as .claude-plugin/plugin.json)
   README.md                         # what the plugin covers, which library version
-  skills/<library>-<topic>/SKILL.md # one folder per skill (Agent Skills format)
+  skills/<library>-<topic>/SKILL.md # one folder per skill (Agent Skills format) - the real files
   skills/<library>-<topic>/*.md     # optional supporting files, linked from SKILL.md
 scripts/validate.py                 # structural checks, run in CI
+CLAUDE.md -> AGENTS.md
 ```
+
+The skill files live inside the plugins, and `skills/<library>` is a single symlink per skill set (never one per
+skill). Do not reverse it: Codex skips symlinked directories when installing a plugin, and Claude Code does not load
+symlinks that point outside the installed plugin folder.
 
 The `skills/` folders follow the open [Agent Skills](https://agentskills.io/specification) format, so harnesses
 without a plugin system (OpenCode, Cursor, Gemini CLI, Copilot, ...) can use them by copying/symlinking the folders,
@@ -64,6 +70,7 @@ or through `npx skills add`.
 ## Adding a new library plugin
 
 1. Create `plugins/<lib>/` with both plugin manifests, a `README.md` and `skills/`.
+   Link the skill set: `ln -s ../plugins/<lib>/skills skills/<lib>`.
 2. Add the plugin to `.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json`, with
    `"source": "./plugins/<lib>"` (the `./` prefix is required by `npx skills`; do not set `metadata.pluginRoot`).
 3. Add it to the table in the root `README.md`.
