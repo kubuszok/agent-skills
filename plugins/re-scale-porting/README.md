@@ -1,13 +1,13 @@
 # `re-scale-porting` plugin
 
 Skills and agents for porting libraries to Scala 3 with
-[re-scale](https://github.com/kubuszok/re-scale) **0.1.5**, a Scala Native CLI
+[re-scale](https://github.com/kubuszok/re-scale) **0.2.0**, a Scala Native CLI
 that adds tracking databases, anti-shortcut scanners and covenant headers to a
 porting project. re-scale reads project specifics from `.rescale/*.yaml` in
 the repository being ported to; the skills here are generic, and each project
 keeps its own type mappings and architecture notes in its own repository.
 
-Docs: the [README at 0.1.5](https://github.com/kubuszok/re-scale/blob/0.1.5/README.md).
+Docs: the [README at 0.2.0](https://github.com/kubuszok/re-scale/blob/0.2.0/README.md).
 
 Install (Claude Code), together with the guard hook:
 
@@ -55,15 +55,18 @@ Other harnesses load only the skills.
 - **Agents**: `re-scale-porting:port-implementer` (ports code, fixes audit
   findings) and `re-scale-porting:port-auditor` (read-only, compares port with
   original, records issues).
-- **`SessionStart` hook** (`hooks/session-start.sh`): if `re-scale 0.1.5` is not
-  on `PATH`, clones the `0.1.5` tag into `~/.local/share/re-scale/0.1.5` (or
-  `$RESCALE_HOME`), builds it with `sbt install` (needs a JDK, sbt and Clang),
-  and adds its `bin/` to `PATH` for the session.
+- **`SessionStart` hook** (`hooks/session-start.sh`): if `re-scale 0.2.0` is not
+  on `PATH`, installs it from Maven Central with
+  [Coursier](https://get-coursier.io) (`cs` must be on `PATH`) into
+  `~/.local/share/re-scale/0.2.0/bin` (or `$RESCALE_INSTALL_DIR`) - the native
+  executable for Linux or macOS on x86_64/aarch64, or the JVM build when no
+  executable fits and `java` is available - and adds that directory to `PATH`
+  for the session. `RESCALE_REPOSITORY` points it at a Maven Central mirror. On
+  any failure it prints a warning and the session starts without re-scale.
 
 There is no `PreToolUse` hook here; that is `re-scale-hooks`. Both plugins ship
 the same installer, and running both is harmless: the script exits immediately
-when `re-scale 0.1.5` is already on `PATH`, and otherwise reuses the same clone
-and build.
+when `re-scale 0.2.0` is already on `PATH` or already installed.
 
 ## Moving from older names
 
@@ -73,8 +76,8 @@ and build.
   `re-scale-<topic>` is now `re-scale-porting-<topic>`, invoked as
   `/re-scale-porting:re-scale-porting-<topic>`; agents are
   `re-scale-porting:port-implementer` / `re-scale-porting:port-auditor`.
-- **`re-scale@kubuszok-tools`** (the plugin from the re-scale repository)
-  likewise becomes `re-scale-porting@kubuszok` plus `re-scale-hooks@kubuszok`.
+- **`re-scale@kubuszok-tools`** (the plugin the re-scale repository shipped up
+  to 0.1.5; it is no longer published) likewise becomes `re-scale-porting@kubuszok` plus `re-scale-hooks@kubuszok`.
   Its skills gained a prefix: `/re-scale:guide-x` becomes
   `/re-scale-porting:re-scale-porting-guide-x` (for example
   `/re-scale:guide-conversion` -> `/re-scale-porting:re-scale-porting-guide-conversion`,

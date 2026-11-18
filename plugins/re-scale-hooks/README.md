@@ -1,6 +1,6 @@
 # `re-scale-hooks` plugin
 
-The guard hook from [re-scale](https://github.com/kubuszok/re-scale) **0.1.5**,
+The guard hook from [re-scale](https://github.com/kubuszok/re-scale) **0.2.0**,
 for any repository - porting or not. It stops an agent from using shell tools
 that have a dedicated replacement (`grep`, `find`, `ls`, `sed`, `awk`, pipes
 into `head`/`tail`/`wc`), bare `sbt`, `rm`, `kill`, destructive git commands
@@ -13,12 +13,16 @@ harnesses load only the skill). For the porting workflow add
 
 ## What it does
 
-- **`SessionStart` hook** (`hooks/session-start.sh`): if `re-scale 0.1.5` is not
-  on `PATH`, clones the `0.1.5` tag into `~/.local/share/re-scale/0.1.5` (or
-  `$RESCALE_HOME`), builds it with `sbt install` (needs a JDK 22+, sbt and
-  Clang), and adds its `bin/` to `PATH` for the session. The same script ships
-  in `re-scale-porting`; running both is harmless, because it exits
-  immediately when the right version is already on `PATH`.
+- **`SessionStart` hook** (`hooks/session-start.sh`): if `re-scale 0.2.0` is not
+  on `PATH`, installs it from Maven Central with
+  [Coursier](https://get-coursier.io) (`cs` must be on `PATH`) into
+  `~/.local/share/re-scale/0.2.0/bin` (or `$RESCALE_INSTALL_DIR`) - the native
+  executable for Linux or macOS on x86_64/aarch64, or the JVM build when no
+  executable fits and `java` is available - and adds that directory to `PATH`
+  for the session. `RESCALE_REPOSITORY` points it at a Maven Central mirror. On
+  any failure it prints a warning and the session starts without re-scale. The
+  same script ships in `re-scale-porting`; running both is harmless, because it
+  exits immediately when the right version is already on `PATH` or installed.
 - **`PreToolUse` hook** (`hooks/pre-tool-use.sh`, for Bash, Read, Edit,
   Write): runs `re-scale hook`, or does nothing when the binary is missing.
 
@@ -39,6 +43,6 @@ Projects add or override rules in `.rescale/claude-hooks.yaml`; no other
 ## Moving from older names
 
 This plugin and `re-scale-porting` replace the single `re-scale@kubuszok`
-plugin and the `re-scale@kubuszok-tools` plugin from the re-scale
-repository. Install both to keep the previous behaviour; install only this one
+plugin and the `re-scale@kubuszok-tools` plugin the re-scale repository
+shipped up to 0.1.5 (it no longer ships one). Install both to keep the previous behaviour; install only this one
 for the hook alone.

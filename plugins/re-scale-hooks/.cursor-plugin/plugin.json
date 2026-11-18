@@ -1,6 +1,6 @@
 {
   "name": "re-scale-hooks",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "The re-scale PreToolUse guard hook for any repository: denies shell grep/find/ls/sed/awk, pipes into head/tail/wc, bare sbt, rm, kill, destructive git and secret-file access, asks before unknown git and GitHub state changes, and auto-approves everything else. Rules are extended in .rescale/claude-hooks.yaml.",
   "author": {
     "name": "Mateusz Kubuszok",

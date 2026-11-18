@@ -11,19 +11,19 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # re-scale guard hook
 
 `re-scale hook` is a Claude Code `PreToolUse` validator from
-[re-scale](https://github.com/kubuszok/re-scale) **0.1.5**. It steers an agent
+[re-scale](https://github.com/kubuszok/re-scale) **0.2.0**. It steers an agent
 away from shell tools that have a dedicated, reviewable replacement and from
 commands that destroy state. It works in any repository; nothing in it is
 specific to porting or to Scala.
 
-This skill describes 0.1.5. Check `re-scale --version`; if it differs, read
-[DefaultRules.scala](https://github.com/kubuszok/re-scale/blob/0.1.5/src/main/scala/rescale/hook/DefaultRules.scala)
+This skill describes 0.2.0. Check `re-scale --version`; if it differs, read
+[DefaultRules.scala](https://github.com/kubuszok/re-scale/blob/0.2.0/cli/src/main/scala/rescale/hook/DefaultRules.scala)
 at the matching tag.
 
 ## How a call is decided
@@ -50,7 +50,7 @@ it and go through Claude Code's normal permission flow.
 
 ## Default rules
 
-Checked against `DefaultRules.scala` at 0.1.5, in evaluation order
+Checked against `DefaultRules.scala` at 0.2.0, in evaluation order
 (first match wins per simple command):
 
 | Command | Decision | Reason given |
@@ -160,7 +160,7 @@ Read/Edit/Write is fixed.
 
 ### Is any other `.rescale/` file needed?
 
-No. Verified against `HookCmd`, `RuleConfig` and `Paths` at 0.1.5: the hook
+No. Verified against `HookCmd`, `RuleConfig` and `Paths` at 0.2.0: the hook
 reads only `.rescale/claude-hooks.yaml`, and that file is optional - without
 it the defaults apply. No `.rescale/` directory is needed at all for the
 defaults. The minimal setup for custom rules is one file,
@@ -168,17 +168,26 @@ defaults. The minimal setup for custom rules is one file,
 
 ## Installing by hand (outside the plugin)
 
-Needs a JDK 22+, sbt and Clang/LLVM:
+re-scale is published to Maven Central with a native executable for Linux and
+macOS on x86_64 and aarch64. With [Coursier](https://get-coursier.io/docs/cli-installation)
+installed:
 
 ```bash
-git clone --branch 0.1.5 https://github.com/kubuszok/re-scale.git ~/.local/share/re-scale/0.1.5
-cd ~/.local/share/re-scale/0.1.5 && sbt install    # builds .build/re-scale-bin
-export PATH="$HOME/.local/share/re-scale/0.1.5/bin:$PATH"   # add to your shell rc
-re-scale --version                                  # re-scale 0.1.5
+V=0.2.0
+cs install --install-dir ~/.local/bin "re-scale:{\"dependencies\":[\"com.kubuszok:re-scale_native0.5_3:$V\"],\"repositories\":[\"central\"],\"launcherType\":\"prebuilt\",\"prebuilt\":\"https://repo1.maven.org/maven2/com/kubuszok/re-scale_native0.5_3/\${version}/re-scale_native0.5_3-\${version}-\${platform}.bin\"}"
+re-scale --version                                  # re-scale 0.2.0
 ```
 
-Always call the `bin/re-scale` wrapper (it caps the heap at 1 GB). To use the
-hook in Claude Code without the plugin, add to `.claude/settings.json`:
+On any other platform install the JVM build (needs Java 17+; every call, so
+every hook invocation, starts a JVM):
+
+```bash
+cs install --install-dir ~/.local/bin "re-scale:{\"dependencies\":[\"com.kubuszok:re-scale_3:$V\"],\"repositories\":[\"central\"],\"mainClass\":\"rescale.Main\",\"javaOptions\":[\"-Xmx1g\"]}"
+```
+
+`~/.local/bin` must be on `PATH`. The executable caps its heap at 1 GB
+(compiled in; set `GC_MAXIMUM_HEAP_SIZE` to override). To use the hook in
+Claude Code without the plugin, add to `.claude/settings.json`:
 
 ```json
 {

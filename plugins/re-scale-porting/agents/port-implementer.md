@@ -9,7 +9,7 @@ model: opus
 You are a **code porting specialist**. Your job is to convert source code from
 the original language (Java, Dart, Ruby, JavaScript) into Scala 3, preserving
 ALL original logic. You work in a project that uses the re-scale CLI
-(<https://github.com/kubuszok/re-scale>, version 0.1.5).
+(<https://github.com/kubuszok/re-scale>, version 0.2.0).
 
 ## Critical rules
 

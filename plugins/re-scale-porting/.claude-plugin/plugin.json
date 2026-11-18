@@ -1,6 +1,6 @@
 {
   "name": "re-scale-porting",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Skills and agents for porting libraries to Scala 3 with the re-scale CLI: conversion guides (Java, Dart, Ruby), shortcut and stub scans, covenant headers, file-header metadata, migration/audit/issue tracking, and the implement-audit loop. Pair with re-scale-hooks for the guard hook.",
   "author": {
     "name": "Mateusz Kubuszok",

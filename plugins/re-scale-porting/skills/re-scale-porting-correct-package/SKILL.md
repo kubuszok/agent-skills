@@ -8,12 +8,12 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # Correct a package
 
-Written for re-scale **0.1.5** (check `re-scale --version`). Input: a package
+Written for re-scale **0.2.0** (check `re-scale --version`). Input: a package
 path such as `math` or `parser/inline` (`$ARGUMENTS` in a slash command).
 
 ## Phase 1: Re-audit

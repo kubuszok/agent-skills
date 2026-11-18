@@ -8,12 +8,12 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # Audit a package
 
-Written for re-scale **0.1.5** (check `re-scale --version`). Input: a package
+Written for re-scale **0.2.0** (check `re-scale --version`). Input: a package
 path such as `math`, `graphics/g2d` or `parser` (`$ARGUMENTS` in a slash
 command). `/batch` means: ask the user for a list of packages and audit them
 one after another, committing between packages so an interrupted session

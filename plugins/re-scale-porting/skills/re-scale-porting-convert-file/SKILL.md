@@ -9,12 +9,12 @@ description: >-
 license: Apache-2.0
 metadata:
   library: re-scale
-  library-version: "0.1.5"
+  library-version: "0.2.0"
 ---
 
 # Convert one file
 
-Written for re-scale **0.1.5** (check `re-scale --version`). Input: the path of
+Written for re-scale **0.2.0** (check `re-scale --version`). Input: the path of
 the original source file (`$ARGUMENTS` in a slash command).
 
 ## Procedure
@@ -49,7 +49,7 @@ the original source file (`$ARGUMENTS` in a slash command).
    re-scale db migration set <source_path> --status ai_converted --port-path <scala path>
    ```
    `migration set` only updates an existing row. If `migration get` shows no
-   row, there is no CLI command to add one in 0.1.5 - tell the user.
+   row, there is no CLI command to add one in 0.2.0 - tell the user.
    Status names are project conventions (`ai_converted`, `ported`, ...); use
    the ones already in `re-scale db migration stats`.
 

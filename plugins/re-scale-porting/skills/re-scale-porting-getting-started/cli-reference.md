@@ -1,7 +1,7 @@
-# re-scale 0.1.5 command reference
+# re-scale 0.2.0 command reference
 
 Checked against the sources at
-<https://github.com/kubuszok/re-scale/tree/0.1.5/src/main/scala/rescale>.
+<https://github.com/kubuszok/re-scale/tree/0.2.0/cli/src/main/scala/rescale>.
 Every command prints its own usage with `--help`. Flags take `--key value` or
 `--key=value`; a flag followed by another `--flag` (or nothing) is a boolean.
 
@@ -127,4 +127,4 @@ re-scale metals install | start [--port N] | stop | status  # default port 7845
 ```
 
 Config examples for `doctor.yaml` and `runners.yaml`: the
-[README at 0.1.5](https://github.com/kubuszok/re-scale/blob/0.1.5/README.md).
+[README at 0.2.0](https://github.com/kubuszok/re-scale/blob/0.2.0/README.md).
