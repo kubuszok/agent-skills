@@ -1,0 +1,19 @@
+{
+  "name": "re-scale",
+  "version": "0.1.5",
+  "description": "Skills, agents and hooks for porting libraries to Scala 3 with the re-scale CLI: conversion guides (Java, Dart, Ruby), shortcut and stub scans, covenant headers, file-header metadata, migration/audit/issue tracking, and the implement-audit loop.",
+  "author": {
+    "name": "Mateusz Kubuszok",
+    "url": "https://github.com/kubuszok"
+  },
+  "homepage": "https://github.com/kubuszok/re-scale",
+  "repository": "https://github.com/kubuszok/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "scala",
+    "scala3",
+    "porting",
+    "migration",
+    "re-scale"
+  ]
+}
