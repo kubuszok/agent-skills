@@ -78,9 +78,20 @@
       ]
     },
     {
-      "name": "re-scale",
-      "source": "./plugins/re-scale",
-      "description": "Skills, agents and hooks for porting libraries to Scala 3 with the re-scale CLI: conversion guides (Java, Dart, Ruby), shortcut and stub scans, file-header metadata, migration/audit/issue tracking, and the implement-audit loop.",
+      "name": "re-scale-hooks",
+      "source": "./plugins/re-scale-hooks",
+      "description": "The re-scale PreToolUse guard hook for any repository: denies shell grep/find/ls/sed/awk, pipes into head/tail/wc, bare sbt, rm, kill, destructive git and secret-file access, asks before unknown git and GitHub state changes, and auto-approves everything else; rules extend in .rescale/claude-hooks.yaml.",
+      "category": "development",
+      "tags": [
+        "hooks",
+        "guardrails",
+        "claude-code"
+      ]
+    },
+    {
+      "name": "re-scale-porting",
+      "source": "./plugins/re-scale-porting",
+      "description": "Skills and agents for porting libraries to Scala 3 with the re-scale CLI: conversion guides (Java, Dart, Ruby), shortcut and stub scans, file-header metadata, migration/audit/issue tracking, and the implement-audit loop. Pair with re-scale-hooks.",
       "category": "development",
       "tags": [
         "scala",
