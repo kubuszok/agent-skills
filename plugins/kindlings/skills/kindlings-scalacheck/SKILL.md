@@ -75,6 +75,14 @@ type), named tuples (Scala 3), refined / iron types (with the integration module
 `IsCollection` / `IsMap` provider (e.g. cats `NonEmptyList`, `NonEmptyMap`, `Chain` with `kindlings-cats-integration`):
 `Arbitrary` regenerates rejected (e.g. empty) candidates, `Shrink` never shrinks a non-empty container to an empty one.
 
+Value types with an `Either` smart constructor (refined, Iron, opaque types, custom `IsValueType` providers): a rejected
+candidate is regenerated up to 100 times, then `Gen.fail` (counted as discarded by `forAll`); rejected shrinks are
+dropped. 0.4.0 failed at runtime with `ClassCastException: scala.util.Right cannot be cast to ...` (fixed after 0.4.0;
+on 0.4.0 provide an `Arbitrary` for the wrapper yourself).
+
+A field instance given by a user `implicit def` is evaluated once, when the derived generator is built, not per sample
+(after 0.4.0).
+
 ## Recursion and size
 
 Recursive types need no `Lazy`, `Recursive[T]` or `RecursionFallback`:

@@ -70,7 +70,7 @@ object Person:
 | Method | Result |
 |---|---|
 | `KindlingsSchema.derived[A]` | `KindlingsSchema[A]` (implicit def / `given`); `.schema: Schema[A]` |
-| `KindlingsSchema.derivedEnumeration[A]` | `KindlingsSchema[A]`: a string-enumeration schema for a sealed trait / enum whose cases are all singletons (not implicit) |
+| `KindlingsSchema.derivedEnumeration[A]` | `KindlingsSchema[A]`: a string-enumeration schema for a sealed trait / enum whose cases are all singletons (not implicit); values are the plain case names (like tapir), not `transformConstructorNames` |
 
 Generic types can take the schemas of their parameters as evidence (the name then includes the actual argument, e.g.
 `Box[Int]`): Scala 3 `case class Box[A](value: A) derives KindlingsSchema`; Scala 2.13
@@ -106,7 +106,9 @@ Your own implicit `Schema` for any type (fields, `Option`, maps, ...) always win
 ## Both circe and jsoniter on the classpath
 
 The macro then finds two configs and fails (`Multiple JSON library configurations found: circe, jsoniter-scala.`).
-Pick one, either globally:
+Typical cause: circe codecs plus `kindlings-tapir-openapi-jsoniter` (depends on `kindlings-jsoniter-derivation`).
+The error prints both fixes verbatim (0.4.0's hint printed a non-compiling `PreferSchemaConfig[circeConfig]`). Pick
+one, either globally:
 
 ```scala
 scalacOptions += "-Xmacro-settings:tapirSchemaDerivation.preferConfig=circe" // or jsoniter-scala
@@ -163,6 +165,8 @@ Not ported: `Schema.oneOfWrapped`, the `Schema.derivedEnumeration` builder API (
 - **Validators missing for refined/Iron types** - import the library's tapir integration where the schema is derived.
 - **Collections required with circe** - correct: circe decoders reject a missing collection field. Give the field a
   default and use `withDefaults` if it should be optional.
+- **`Option` field optional but not nullable, while the codec writes `"field":null`** - both codecs write `null` for
+  `None` by default; jsoniter `withTransientNone`, circe a printer with `dropNullValues = true` (see `kindlings-http-api`).
 - **Scala 2: `HearthAssertionError: Hearth assertion failed: MIO timeout is already set`** - a `val` holding a derived
   instance has no explicit type (`val ks = KindlingsSchema.derived[A]`) and the same file derives a type with a sealed-trait
   field: Scala 2 types the un-annotated `val` while the other derivation is running. Give such vals an explicit

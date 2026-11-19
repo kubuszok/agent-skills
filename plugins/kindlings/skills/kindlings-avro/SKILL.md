@@ -10,7 +10,7 @@ description: >-
   @avroSortPriority, @avroEnumDefault, @fieldName, @transientField). Use when replacing avro4s (SchemaFor, Encoder,
   Decoder, AvroSchema, @AvroName, ScalePrecision) with Kindlings, on schema-registry compatibility or schema
   evolution questions, BigDecimal/OffsetDateTime/tuple schema differences, "Method too large" for wide case classes
-  (issue 308), or avroDerivation timeouts.
+  (issue 308, fixed after 0.4.0), or avroDerivation timeouts.
 license: Apache-2.0
 metadata:
   library: kindlings
@@ -137,6 +137,7 @@ schema evolution. Differences:
 | avro4s 5 gaps (recursive types, value classes, `Enumeration`, `FieldMapper`) | unsupported on 5.x | supported | - |
 | `@avroScalePrecision` parameter order | avro4s 5: `(scale, precision)` | `(precision, scale)` | swap arguments |
 | `@avroSortPriority` type | `Float` | `Int` | - |
+| Namespace of a type in the empty package | avro4s 5: none; avro4s 4: `empty` (records) / `<empty>` (enums, invalid Avro) | none on both Scala versions (0.4.0 on Scala 2: `<empty>`) | `@avroNamespace` |
 | Shapeless `Coproduct` UNIONs, avro4s-cats/-refined/-kafka | yes | not ported (use Kindlings integration modules) | - |
 
 On Scala 2, ENUM symbols and subtype order follow names (Scala 2 class files keep no declaration order); on Scala 3
@@ -154,11 +155,12 @@ and check tuples (renamed records) - otherwise the new schemas may be incompatib
 
 ## Gotchas
 
-- **`Method too large: ...decode_<Type>$macro...` (issue #308, open in 0.4.0)** - the `AvroDecoder` of a case class
-  with ~88+ fields **with default values** exceeds the JVM's 64 KB method limit; from ~26 defaulted fields the decoder
-  method is also too big to be JIT-compiled (runs interpreted). Workarounds until a fixed release: group fields into
-  nested case classes (changes the schema), hand-write the decoder for that type, or stay on 0.3.2 for that module.
-  Fields without defaults are not affected.
+- **`Method too large: ...decode_<Type>$macro...` (issue #308, 0.4.0 only, fixed after 0.4.0)** - the `AvroDecoder`
+  of a case class with ~88+ fields **with default values** exceeds the JVM's 64 KB method limit (from ~26 defaulted
+  fields it is too big to be JIT-compiled). On 0.4.0: group fields into nested case classes (changes the schema) or
+  hand-write the decoder for that type.
+- A field instance given by a user `implicit def` is evaluated once per derived encoder/decoder, not per call (after
+  0.4.0).
 - **Schema differs between writer and reader** - encoder and decoder derived with different `AvroConfig`s or
   annotations; derive both with the same config.
 - **`BigDecimal` written as a string** - Kindlings default; set `withDecimalConfig` or `@avroScalePrecision`.

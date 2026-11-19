@@ -162,9 +162,12 @@ derivation policy instead (`kindlings-derivation-policy`).
 - **NonEmptyAlternative / Alternative rejected**: every field must wrap `A` in a (NonEmpty)Alternative type; a bare `A`
   field is not allowed.
 - **`Functor.derived` on a case class recursive through a container** (`Tree[A](value: A, children: List[Tree[A]])`)
-  fails in 0.4.0 with `type mismatch; found: Tree[...CatsDerivationFactories.W2] required: Tree[Any]` (Scala 2 and 3).
-  Workaround: derive `Traverse` (or `Foldable`) instead - `Traverse.derived[Tree]` works and is a `Functor`. Recursive
-  sealed traits (`IList[A]`) are fine.
+  fails in 0.4.0 with `type mismatch; found: Tree[...CatsDerivationFactories.W2] required: Tree[Any]` (Scala 2 and 3;
+  fixed after 0.4.0). On 0.4.0 derive `Traverse` instead - `Traverse.derived[Tree]` works and is a `Functor`.
+- **`ConsK.derived` throws `ClassCastException`** when the nested tail uses a type constructor other than `List` (e.g.
+  with a custom `ConsK` instance) - 0.4.0 only, fixed after 0.4.0.
+- A field instance given by a user `implicit def` is evaluated once per derived instance, not per call (after 0.4.0,
+  also for nested/composed instances of polymorphic type classes).
 - **Scala 3 enum `Eq`/`Order` with `-Werror`**: older versions emitted "unchecked type test" warnings; fixed in 0.3.2.
 
 ## Debugging, timeouts, policy

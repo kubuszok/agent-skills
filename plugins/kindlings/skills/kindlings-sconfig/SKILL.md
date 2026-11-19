@@ -118,7 +118,10 @@ Behaviour follows PureConfig's derivation (the module runs pureconfig-derivation
 - `ConfigDecodingError` extends `Throwable`: `getMessage` gives `Key not found: 'host'. (at db)`;
 - case-object families: `{ type = info }` with a discriminator, plain strings with `withWrappedSubtypes`; an unknown
   string fails with `CannotConvert` on both Scala versions;
-- empty `Option` fields are omitted when writing.
+- empty `Option` fields are omitted when writing;
+- field instances are resolved once per derived reader/writer (an `implicit def` is called once per instance, as in
+  PureConfig), and subtype names from `transformConstructorNames` are computed once per instance, also with a runtime
+  config (after 0.4.0).
 
 ## sconfig vs pureconfig module
 

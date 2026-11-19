@@ -134,6 +134,9 @@ sealed subtype (wins over transforms and hints); `@transientField` skips a field
   `KindlingsCoproductHint.Wrapped` plain strings (`level = info`), like `deriveEnumerationReader`/`Writer`.
 - `FirstSuccess`: subtypes tried in alphabetical order of their names, first success wins.
 - Empty `Option` fields are omitted when writing.
+- Field instances (also pureconfig's own `implicit def`s such as `optionReader`) are resolved once per derived
+  reader/writer, as upstream (after 0.4.0; 0.4.0 resolved them on every read/write) - a user `implicit def` returning
+  a new instance per call is evaluated once per derived instance.
 
 ## Differences from PureConfig
 
