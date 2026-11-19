@@ -1,6 +1,6 @@
 {
   "name": "sbt-kubuszok",
-  "version": "0.2.5-1",
+  "version": "0.2.6",
   "description": "Skills for adopting sbt-kubuszok: what the plugin already configures (git versioning, publishing to Maven Central, ci-release, scalafmt), how to lay out a projectMatrix build with projectType/Aliases/DevProperties, the GitHub Actions CI and release workflows, and the errors first releases hit.",
   "author": {
     "name": "Mateusz Kubuszok",

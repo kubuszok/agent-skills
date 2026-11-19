@@ -13,7 +13,7 @@ description: >-
 license: Apache-2.0
 metadata:
   library: sbt-kubuszok
-  library-version: "0.2.5"
+  library-version: "0.2.6"
 ---
 
 # Setting up a build with sbt-kubuszok
@@ -22,19 +22,19 @@ sbt-kubuszok is an sbt plugin that bundles the plugins kubuszok projects use. It
 publishing to Maven Central and formatting, so the build does not have to. **Most first-release failures came from
 re-configuring what the plugin already does, or from forgetting the few things it does not do.**
 
-Version: written for sbt-kubuszok **0.2.5**. Check the version in the user's `project/plugins.sbt`. If it differs, read
-the README and plugin source at that tag (<https://github.com/kubuszok/sbt-kubuszok/tree/0.2.5>). Builds on 0.2.4 or
+Version: written for sbt-kubuszok **0.2.6**. Check the version in the user's `project/plugins.sbt`. If it differs, read
+the README and plugin source at that tag (<https://github.com/kubuszok/sbt-kubuszok/tree/0.2.6>). Builds on 0.2.4 or
 older lack `commandAliases`, `testFull` in sbt 2 aliases, `doc` in `ci`, `dev.prop` and the `ide.scala` fix; upgrade
-them to 0.2.5 instead of writing workarounds. CI workflows are covered by `sbt-kubuszok-github-actions`, and
+them to 0.2.6 instead of writing workarounds. CI workflows are covered by `sbt-kubuszok-github-actions`, and
 error messages by `sbt-kubuszok-troubleshooting`.
 
 ## 1. Pick versions that work together
 
 | sbt (`project/build.properties`) | sbt-kubuszok | JDK for sbt |
 |---|---|---|
-| 1.11.0+ (kubuszok repos use 1.13.1) | 0.2.5 | 11+ |
+| 1.11.0+ (kubuszok repos use 1.13.1) | 0.2.6 | 11+ |
 | 2.0.x | **0.2.3** (last version for sbt 2.0; upgrade sbt to 2.1 instead) | 17+ |
-| 2.1.x | **0.2.4+** (required; use 0.2.5) | 17+ |
+| 2.1.x | **0.2.4+** (required; use 0.2.6) | 17+ |
 
 - `ci-release` relies on sbt's built-in Central publishing (`localStaging`, `sonaRelease`), which arrived in **sbt
   1.11**. On an older sbt, upgrade sbt first.
@@ -49,7 +49,7 @@ error messages by `sbt-kubuszok-troubleshooting`.
 ```scala
 // sbt-kubuszok bundles: sbt-git, sbt-scalafmt, sbt-scoverage, sbt-commandmatrix, sbt-pgp, sbt-mima-plugin,
 // sbt-ide-settings, sbt-scalajs, sbt-scala-native (+ sbt-projectmatrix and sbt-welcome on sbt 1.x only)
-addSbtPlugin("com.kubuszok" % "sbt-kubuszok" % "0.2.5")
+addSbtPlugin("com.kubuszok" % "sbt-kubuszok" % "0.2.6")
 // only plugins that are NOT bundled, e.g.:
 // addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8")
 ```
@@ -57,7 +57,7 @@ addSbtPlugin("com.kubuszok" % "sbt-kubuszok" % "0.2.5")
 **Delete** these lines from `plugins.sbt` when migrating. Re-adding them at a different version than the bundled one
 causes conflicts or binary-incompatibility errors:
 
-| Bundled in 0.2.5 | Version |
+| Bundled in 0.2.6 | Version |
 |---|---|
 | `com.github.sbt:sbt-git` | 2.2.0 |
 | `org.scalameta:sbt-scalafmt` | 2.6.2 |
@@ -80,7 +80,7 @@ A `.scalafmt.conf` must exist in the repo root. CI checks formatting with it.
 
 `KubuszokPlugin` triggers automatically for every project.
 
-| Concern | What the plugin sets (0.2.5) | Remove from the build |
+| Concern | What the plugin sets (0.2.6) | Remove from the build |
 |---|---|---|
 | Versioning | sbt-git `GitVersioning` with `useGitDescribe`. A tag on HEAD gives the release version (`1.2.3`). Otherwise the version is `<last-tag>-<n>-g<sha>-SNAPSHOT`. Uncommitted changes are ignored: `isSnapshot` is true exactly when HEAD has no tag. | `version :=` / `ThisBuild / version :=`, `enablePlugins(GitVersioning, GitBranchPrompt)`, `git.*` settings, sbt-dynver, `-Dproject.version` hacks |
 | Where to publish | `publishTo`: SNAPSHOT goes to `https://central.sonatype.com/repository/maven-snapshots`, a release goes to `localStaging` (bundled, then uploaded by `sonaRelease`) | `publishTo`, `sonatypeCredentialHost`, `sonatypeRepository`, credentials files |
@@ -115,7 +115,7 @@ projectType := ProjectType.NonPublished // DEFAULT: publish / skip := true, publ
 - Root, tests, examples and benchmarks can keep the default. Do not add `publish / skip := true` as well. If a shared
   `publishSettings` and a `noPublishSettings` both reach one project, apply `noPublishSettings` **last**; the later
   `projectType` wins.
-- In 0.2.5, `JarOnly` publishes exactly like `ScalaLibrary`. For a non-Scala JAR, still set
+- In 0.2.6, `JarOnly` publishes exactly like `ScalaLibrary`. For a non-Scala JAR, still set
   `crossPaths := false, autoScalaLibrary := false` yourself.
 - An sbt plugin module uses `enablePlugins(SbtPlugin)` and `projectType := ProjectType.JarOnly`. To cross-publish it
   for sbt 2, add `crossScalaVersions := Seq("3.x", "2.12.x")` with `pluginCrossBuild / sbtVersion`.
@@ -246,12 +246,11 @@ ide.platform = jvm
   `1.2.3`.
 - **Deleting too much while migrating.** Removing `packageDoc` settings, MiMa or POM metadata along with the
   boilerplate breaks the release (Central validation). Remove only what section 3 lists.
-- **Git worktrees break versioning.** sbt-git reads the repository with JGit, which does not understand the `.git`
-  file of a `git worktree`. Inside a worktree `version` falls back to a timestamp (`20261118T202211`) and tags are not
-  seen. Do not `publishLocal` artifacts other builds depend on, or release, from a worktree; use a normal clone.
-  Do **not** fix it with `git.useConsoleForROGit := true`: with sbt-kubuszok 0.2.5 the console reader reports
-  `gitCurrentTags == Seq("")` on an untagged commit, so `isSnapshot` becomes `false`, the version loses `-SNAPSHOT`,
-  and `ci-release` would attempt a release.
+- **Git worktrees need 0.2.6+.** sbt-git's JGit cannot read the `.git` file of a `git worktree`. On 0.2.5 and older,
+  `version` inside a worktree falls back to a timestamp (`20261118T202211`) and tags are not seen. 0.2.6 reads the
+  repository through the `git` CLI there, so upgrade. Do not set `useConsoleForROGit := true` by hand on 0.2.5: its
+  console reader reports `gitCurrentTags == Seq("")` on an untagged commit, so `isSnapshot` becomes `false` and
+  `ci-release` would attempt a release (0.2.6 filters the empty tag out).
 - **`ci-*` starts with `clean`.** Builds with source generators or prebuilt caches that `clean` would wipe override
   `ci` in the `Aliases` subclass, e.g.
   `override def ci(p: String, s: String) = super.ci(p, s).split(" ; ").filterNot(_ == "clean").mkString(" ; ")`.

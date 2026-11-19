@@ -1,6 +1,6 @@
 # `sbt-kubuszok` plugin
 
-Skills for **using** [sbt-kubuszok](https://github.com/kubuszok/sbt-kubuszok) **0.2.5**, the sbt plugin that bundles
+Skills for **using** [sbt-kubuszok](https://github.com/kubuszok/sbt-kubuszok) **0.2.6**, the sbt plugin that bundles
 and configures the build tooling of kubuszok Scala projects: git versioning, Maven Central publishing (`ci-release`),
 scalafmt, scoverage, sbt-projectmatrix/commandmatrix, Scala.js, Scala Native, sbt-pgp, MiMa, IDE settings.
 
