@@ -91,8 +91,10 @@ companion is still the way to make an instance visible to circe APIs that ask fo
 
 A derived instance resolves its field instances once per instance (after 0.4.0 also for encoders: a user
 `implicit def` field `Encoder`/`KeyEncoder` is evaluated once, not per encode); with a runtime-only `Configuration` the
-transformed field/subtype names are computed once per instance. Inline `KindlingsEncoder.encode` still resolves them
-on every call.
+transformed field/subtype names are computed once per instance, by encoders and (after 0.4.0) decoders too (a decoder
+of a map with enum keys looks keys up in a table built once per instance). Inline `KindlingsEncoder.encode` /
+`KindlingsDecoder.decode` have no instance and still compute them on every call: for a hot path with a runtime config
+prefer a derived instance (`KindlingsDecoder.derived` / `KindlingsCodecAsObject.derived`).
 
 ## Configuration
 

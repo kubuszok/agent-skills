@@ -63,9 +63,6 @@ val app: Resource[SyncIO, App] = DICats.wireResource[SyncIO, App](
 | `Cyclic dependency detected for [X]` | cycle in the graph | restructure the classes so the graph is acyclic |
 | `Cannot find an implicit value of type: [...]` | a constructor's implicit parameter or a `resource[F]` context bound (e.g. `Sync[F]`) is missing | import/provide the instance for your `F` |
 
-Note: the di-cats user guide says a missing parameter reports *"Cannot find a value of type ..."*; the actual message
-is the `Missing dependency of type ...` form above.
-
 ## Not supported
 
 - Tagged (`@@`) disambiguation of dependencies inside `wireResource`.
