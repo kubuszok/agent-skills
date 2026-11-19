@@ -106,7 +106,7 @@ def deriveTypeClass[A: Type]: Expr[Show[A]] = {
 ```
 
 - Do not derive inside the instance's `Expr.splice` and call `toValDefs.use` there: the cached `lazy val`s (summoned instances) and `def`s then become locals of the method body and are re-created on **every call**.
-- `runToExprOrFail` is the program's `main`: call it **exactly once per expansion**, at the top. Compose inner `MIO`s with `flatMap`/`MIO.scoped`; nesting it throws `HearthAssertionError: ... MIO timeout is already set`. Its `timeout` defaults to **2 seconds** - large ADTs on a loaded CI exceed it (`Macro 'X' timed out after 2000ms`). Pass a larger default and let users override it via your own setting namespace:
+- `runToExprOrFail` is the program's `main`: call it **exactly once per expansion**, at the top. Compose inner `MIO`s with `flatMap`/`MIO.scoped`; calling it again inside the same expansion throws `HearthAssertionError: ... MIO timeout is already set` (runs of other expansions the compiler starts meanwhile, e.g. a summoned macro-derived implicit, are isolated and fine). Its `timeout` defaults to **2 seconds** - large ADTs on a loaded CI exceed it (`Macro 'X' timed out after 2000ms`). Pass a larger default and let users override it via your own setting namespace:
 
 ```scala
 private def macroTimeout: scala.concurrent.duration.FiniteDuration =
@@ -164,7 +164,7 @@ Why: `Map <: Iterable` (map before collection); `String` and `Option` also match
 - **Compiler hangs / OOM / "diverging implicit" while deriving** -> plain `summonImplicit` found your own `derived` (or the parent library's auto-derivation) -> `summonExprIgnoring(ignored*)`.
 - **Runtime `NullPointerException` or StackOverflowError from `implicit val x: TC[A] = TC.derived[A]`** -> self type not skipped in the use-implicit rule.
 - **`Macro 'X' timed out after 2000ms`** -> default timeout; raise it via `runToExprOrFail(timeout = ...)` and make it configurable. To verify your setting is read, set it to `1ms` once.
-- **`HearthAssertionError: ... MIO timeout is already set`** -> a second `runToExprOrFail` starts while the outer one is active -> stay in one `MIO` program. (A nested `mio.unsafe.runSync` does not throw, but starts from empty state and loses logs and `MLocal`s - avoid it too.)
+- **`HearthAssertionError: ... MIO timeout is already set`** -> your expansion starts a second `runToExprOrFail` while its own is active -> stay in one `MIO` program. (A nested `mio.unsafe.runSync` does not throw, but starts from empty state and loses logs and `MLocal`s - avoid it too.)
 - **`HearthRequirementError: Expr.summonImplicitIgnoring ... available since Scala 2.13.17`** (or `3.7.0`) -> users compile with an older Scala -> see the version note in the use-implicit section.
 - **Only the first error is reported** -> sequential `for`/`flatMap` over fields/subtypes/methods -> `parTraverse`/`parTuple`. (Exception: branches that must see each other's `MLocal` state created with fork/join semantics.)
 - **Primitive fields derived as collections of `Char`, `String` encoded as an array** -> no built-in rule before the collection rule.
