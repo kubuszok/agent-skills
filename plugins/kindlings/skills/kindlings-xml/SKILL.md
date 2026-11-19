@@ -100,7 +100,7 @@ implicit val xmlConfig: XmlConfig = XmlConfig.default
 | `enumAsStrings` (`withEnumAsStrings`) | `false` | case-object enums as text content |
 | `useDefaults` (`withUseDefaults`) | `false` | constructor defaults for missing fields when decoding |
 | `transientNone` (`withTransientNone`) | `false` | omit `None` fields when encoding |
-| `transientEmpty` (`withTransientEmpty`) | `false` | omit empty collections when encoding |
+| `transientEmpty` (`withTransientEmpty`) | `false` | omit empty collections when encoding (empty strings are still written) |
 
 ## Annotations (`hearth.kindlings.xmlderivation.annotations`)
 
@@ -121,9 +121,17 @@ KindlingsXmlEncoder.encode(Link("https://scala-lang.org", "Scala"), "a")
 ```
 
 Collections are written as a field element with `<item>` children by default (`<tags><item>a</item></tags>`).
-`Option` fields: `None` is written as an empty element (`<name/>`) and `<name/>` decodes as `None`, but an **absent**
-`Option` element fails (`MissingElement`) unless the field has a default and `withUseDefaults` is on. Unknown extra
-child elements are ignored; the root element's own name is not checked when decoding. Maps, value classes
+Absent vs empty (after 0.4.0; `withTransientNone` / `withTransientEmpty` output round-trips with any decoder config):
+
+- absent `Option` element or attribute -> `None` (the default instead with `withUseDefaults` and a default value);
+- absent collection/map element -> empty collection (same `withUseDefaults` exception);
+- any other absent element/attribute -> `MissingElement` / `MissingAttribute` (also for `String`);
+- empty `String` element/attribute (`<name/>`, `label=""`) -> `""`;
+- `Option` attribute: written as the value for `Some`, omitted for `None`;
+- empty `Option` element -> `None` (that is how `None`, and also `Some("")`, is written without `withTransientNone`);
+  with `withTransientNone` it is `Some("")` for an `Option[String]` (`None` if the empty element does not decode).
+
+Unknown extra child elements are ignored; the root element's own name is not checked when decoding. Maps, value classes
 (unwrapped), case objects, Scala 3 / Java enums, generic and recursive types are supported.
 
 ## Errors
@@ -139,9 +147,10 @@ child elements are ignored; the root element's own name is not checked when deco
 
 - **Missing field with a default fails** (`Missing child element <x> in <p>`): defaults are off by default here, unlike
   most other Kindlings modules. Fix: `XmlConfig.default.withUseDefaults`.
-- **Absent `Option` element fails** (`Missing child element <o> in <p>`), also for XML written with `withTransientNone`:
-  such output does not decode back. Fix: give the field `= None` and decode with `withUseDefaults` (or do not use
-  `withTransientNone` for data you read back). Round-trip-test your config.
+- **0.4.0 only (fixed after 0.4.0)**: an absent `Option` element failed (`Missing child element <o> in <p>`, also for
+  `withTransientNone` output; workaround `= None` + `withUseDefaults`); an absent collection element failed; an empty
+  `String` failed with `MissingContent` (and `withTransientEmpty` dropped it); an `Option` attribute was written as
+  `Some(v)` / `None`. Round-trip-test your config.
 - **Sealed trait decoding fails with `Missing discriminator attribute 'type' in element <s>`**: XML produced elsewhere
   has no `type` attribute. Set its name with `withDiscriminator("...")`, or use `withNoDiscriminator` (subtype-named
   wrapper element) - the same config on both sides.

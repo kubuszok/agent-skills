@@ -23,7 +23,7 @@ instances) and, for recursive types, fields mentioning the type itself (`childre
 
 | Type class | Package | Requirements |
 |---|---|---|
-| `Functor`, `Foldable`, `Traverse` | `cats` | `Functor`/`Foldable`/`Traverse` for every wrapping `G`; sealed traits supported (e.g. `IList[A]`). 0.4.0 bug: `Functor` for a case class recursive through a container fails - use `Traverse` |
+| `Functor`, `Foldable`, `Traverse` | `cats` | `Functor`/`Foldable`/`Traverse` for every wrapping `G`; sealed traits supported (e.g. `IList[A]`). 0.4.0 bug (fixed after 0.4.0): `Functor` for a case class recursive through a container fails - use `Traverse` |
 | `Contravariant` | `cats` | `A` only in contravariant positions (e.g. `A => Int` fields) |
 | `Invariant` | `cats` | `A` in any position |
 | `Apply`, `Applicative`, `Pure` (`alleycats`) | | `Apply`/`Applicative`/`Pure` for every wrapping type; constant fields combined with `Semigroup` / `Monoid` / `Empty` |

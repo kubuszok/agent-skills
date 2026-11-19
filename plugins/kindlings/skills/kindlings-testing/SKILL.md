@@ -202,7 +202,7 @@ value classes (`Mirror.Of` missing), so differential tests of `AnyVal` fields on
 class CompileTimeSuite extends munit.FunSuite {
   test("a type with a Thread field does not get an Encoder") {
     val errors: String = compileErrors("hearth.kindlings.circederivation.KindlingsEncoder.derived[Option[Thread]]")
-    val plain = errors.replaceAll("\u001b\\[[0-9;]*m", "") // type names may carry ANSI codes
+    val plain = errors.replaceAll("\u001b\\[[0-9;]*m", "") // only needed on 0.4.0 (ANSI codes in type names)
     assert(plain.contains("java.lang.Thread was not handled by any encoder derivation rule"), plain)
   }
   test("the hand-written Encoder[Money] wins over derivation") {
@@ -241,16 +241,16 @@ Test sources derive a lot at once (`Arbitrary`, `Shrink`, `Diff` for the whole m
 
 - **`Found: Order, Required: String` on `assertNoDiff(a, b)`** - inside a munit suite the inherited
   `assertNoDiff(String, String)` wins even after `import Diff._`. Call `Diff.assertNoDiff(...)` qualified.
-- **Error-message assertion fails although the message looks right** - on Scala 2.13 (and Scala 3 with colour
-  enabled) Kindlings prints type names with ANSI codes (`java.[35mlang...`). Strip `\u001b\[[0-9;]*m` first or match
-  text without type names.
+- **Error-message assertion fails although the message looks right** - 0.4.0 on Scala 2.13 (and Scala 3 with colour
+  enabled) prints type names in derivation errors with ANSI codes (`java.[35mlang...`; fixed after 0.4.0). Strip
+  `\u001b\[[0-9;]*m` first or match text without type names.
 - **`Recursive value errors needs type` (Scala 3) / `illegal cyclic reference involving value errors` (Scala 2.13)
-  from `compileErrors`** - with an opt-in derivation policy, `val errors = compileErrors(...)` without a type breaks the
-  derivation (0.4.0 bug). Write `val errors: String = ...`. On Scala 2.13 any untyped `val e = X.derived[A]` fails the
-  same way under an opt-in policy, even in an allowed scope: always annotate types of vals holding derived instances.
-- **`assertion failed: missing outer accessor in class MySuite` (Scala 3 compiler crash)** - a sealed trait whose
-  case object sits in its companion (`object St { case object On extends St }`), declared inside a class (e.g. the
-  suite), derived by Kindlings 0.4.0 (reproduced with circe and diff derivation).
+  from `compileErrors`** - 0.4.0 with an opt-in derivation policy: `val errors = compileErrors(...)` without a type, or
+  on 2.13 any untyped `val e = X.derived[A]`, breaks the derivation (fixed after 0.4.0). On 0.4.0 write
+  `val errors: String = ...`.
+- **`assertion failed: missing outer accessor in class MySuite` (Scala 3 compiler crash, Hearth bug, not fixed)** - a
+  sealed trait whose case object sits in its companion (`object St { case object On extends St }`), declared inside a
+  class (suite, `.sc` script), derived by Kindlings (reproduced with circe and diff derivation).
   Move test models to the top level or a top-level `object`.
 - **Golden passes in CI although nobody wrote it** - the helper created the missing file. Fail on missing files and
   regenerate only behind an explicit switch (`UPDATE_GOLDEN`), see [golden-files.md](golden-files.md).

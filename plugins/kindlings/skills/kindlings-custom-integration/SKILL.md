@@ -230,9 +230,9 @@ provider. So:
 - **AnyVal smart constructor ignored, invalid values decode** -> the built-in AnyVal provider calls the constructor.
   Give your provider `priority` > 0, or provide implicits.
 - **`ClassCastException: scala.util.Right cannot be cast to ...` from `DeriveArbitrary.derived`** -> bug in
-  `kindlings-scalacheck-derivation` 0.4.0: for value types with a validating constructor (`Either...` `CtorLikeOf`,
-  also refined and Scala 3 opaque types with an `Either` smart constructor) the generator returns the `Either`
-  instead of the value. Provide an `Arbitrary` for the wrapper yourself.
+  `kindlings-scalacheck-derivation` 0.4.0 (fixed after 0.4.0): for value types with a validating constructor
+  (`Either...` `CtorLikeOf`, also refined and Scala 3 opaque types with an `Either` smart constructor) the generator
+  returns the `Either` instead of the value. On 0.4.0 provide an `Arbitrary` for the wrapper yourself.
 - **Other types suddenly derived through your provider, or broken generated code** -> `parse` returned `Matched` for
   types it cannot build. Match only your exact type, decline with `skippedLazily(reason)` (or `failed(throwable)`),
   and summon what construction needs inside `parse` (decline if missing) instead of failing later in a quote.

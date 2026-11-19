@@ -60,7 +60,8 @@ Extras: `kindlings-jsoniter-json` (small JSON AST + codec for jsoniter) and `kin
 Platforms: everything is published for Scala 2.13 and 3 on JVM, Scala.js and Scala Native, except:
 
 - **JVM only**: `kindlings-avro-derivation`, `kindlings-pureconfig-derivation`, `kindlings-newtype-integration`.
-- **JVM + Scala.js only**: `kindlings-di-cats`, `kindlings-tapir-openapi-jsoniter`.
+- **JVM + Scala.js only**: `kindlings-tapir-openapi-jsoniter` (and `kindlings-di-cats` in 0.4.0; Scala Native after
+  0.4.0).
 - **Scala 3 only**: `kindlings-iron-integration`, `kindlings-neotype-integration`.
 
 0.4.0 is built with Scala 2.13.18 and Scala 3.8.4. Scala 3 projects need a Scala 3.8+ compiler (an older compiler

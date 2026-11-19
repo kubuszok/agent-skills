@@ -83,7 +83,7 @@ avro-derivation:
   `Enumeration` ENUMs named after the enumeration object;
 - decoders reject `null`/missing primitives without defaults (were `0`/`false`); fields with defaults fall back to the
   default; integral widening as avro4s.
-- Known regression: `AvroDecoder` for 88+ defaulted fields hits "Method too large" (#308, open).
+- Known regression: `AvroDecoder` for 88+ defaulted fields hits "Method too large" (#308, fixed after 0.4.0).
 
 yaml-derivation: scala-yaml defaults - constructor defaults used for absent fields, sealed traits **untagged**
 (`radius: 1.0` instead of `Circle: { radius: 1.0 }`), absent `Option` -> `None`, scala-yaml error messages. Old
@@ -121,3 +121,29 @@ diff: `prettyName` computed at runtime from the plain type name; `NameStyle.Pret
 codes.
 
 circe-derivation: no semantic changes beyond the Scala 2 subtype order.
+
+## 0.4.0 -> next release (binary compatible, MiMa-checked against 0.4.0; recompile to get the changes)
+
+Behaviour changes:
+
+- xml: absent `Option` element/attribute -> `None` and absent collection/map element -> empty (were `MissingElement`);
+  empty `String` element/attribute -> `""` (was `MissingContent`), absent `String` -> `MissingElement`; `Option`
+  attributes written as the value / omitted for `None` (were `Some(v)` / `None`); `withTransientEmpty` no longer omits
+  empty `String`s; with `withTransientNone` an empty `Option[String]` element decodes as `Some("")`.
+- derivation policy: gates only structural derivation - collections, `Option`, `Either`, value types, tuples are never
+  gated (`derived[List[User]]` at a denied site compiles when `User` has an instance).
+- avro: a type in the empty package has no namespace on Scala 2 either (was `<empty>`) - schema change for such types.
+- yaml: repeated key in a case-class mapping -> last value (was first); non-scalar key -> `Parameter of a class must be
+  a scalar value` (was ignored).
+- diff: `modifyField(name).using(d)` is applied (was ignored); `diffDerivation.logDerivation=true` is read.
+- di: unused members of `DI.autowireMembersOf(module)` are not errors (only a wholly unused module is).
+- fast-show-pretty: all settings under `fastShowPrettyDerivation` (`fastShowPretty.logDerivation` still accepted).
+- derivation error messages contain no ANSI colour codes (Scala 2.13).
+- a user `implicit def` field instance is evaluated once per derived instance, not per call (circe encoders,
+  pureconfig, sconfig, avro, yaml, cats; scalacheck: once when the generator is built); runtime-config
+  `fieldNameMapper` (jsoniter, ubjson) and subtype-name mappers (circe, sconfig, yaml) run once per instance.
+
+Fixed: avro "Method too large" (#308); scalacheck `ClassCastException` for `Either` smart-constructor value types; cats
+`Functor` for recursive case classes, `ConsK` `ClassCastException`; circe `KindlingsCodecAsObject.derive(enumAsStrings
+= ...)` (Scala 3); untyped `val x = X.derived[A]` under an opt-in policy; tapir `PreferSchemaConfig` hint compiles.
+New: `hearth.kindlings.parser.MachineStatus`; `kindlings-di-cats` for Scala Native.

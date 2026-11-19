@@ -92,6 +92,7 @@ Everything else (name mappers, `isStringified`, `@named`, `@stringified`, key co
 | `@AvroSortPriority` | `Float` | `@avroSortPriority(Int)`; higher first, as upstream | - |
 | `@AvroScalePrecision` | `(scale, precision)` (ignored in avro4s 5) | `@avroScalePrecision(precision, scale)`, honoured | - |
 | `@AvroEnumDefault`, recursive types, value classes, `Enumeration`, working field mappers | avro4s 5 lacks them | supported on Scala 2 and 3 | - |
+| Namespace of a type in the empty package | avro4s 5: none; avro4s 4: `empty` / `<empty>` (enums) | none on both versions (after 0.4.0; 0.4.0 Scala 2: `<empty>`) | `@avroNamespace` |
 
 Scala default values become schema defaults (as avro4s); `withoutScalaDefaultsInSchema` keeps only `@avroDefault`
 ones. Not ported: shapeless `Coproduct` unions, `avro4s-cats` / `-refined` / `-kafka` (use Kindlings integrations for
@@ -133,7 +134,8 @@ Defaults match scala-yaml since 0.4.0 (untagged sealed traits decoded by trying 
 used, absent `Option` -> `None`). Opt-ins: `withoutUseDefaults`, `withWrappedSubtypes`, `withDiscriminator(field)`,
 `withEmptyCollectionsAsFlow` (prints `[]`/`{}` so empty collections round-trip; upstream prints an empty value that
 decodes as `null`). Kindlings also supports Scala 2, Scala 3 Native, Java enums, named tuples, field renames
-(`@fieldName`, `@transientField`).
+(`@fieldName`, `@transientField`). Repeated keys (last value wins) and non-scalar keys (`Parameter of a class must
+be a scalar value`) behave as scala-yaml after 0.4.0 (0.4.0: first value / key ignored).
 
 ## scalacheck (scalacheck-shapeless on 2.13, scalacheck-derived on 3)
 
