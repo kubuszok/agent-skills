@@ -26,7 +26,8 @@ Kindlings derivation (and every other Hearth-based macro) handle it, with no imp
 Version: written for Kindlings 0.4.0 (built on Hearth 0.4.5). Check the version in the user's build (`build.sbt` /
 `build.mill` / `project.scala` `//> using dep`); if it differs, prefer the docs for that version:
 <https://kindlings.readthedocs.io/en/0.4.0/custom-integrations/> (fall back to `en/latest`). The provider must be
-compiled against the Hearth version that the user's Kindlings version depends on.
+compiled against the Hearth version that the user's Kindlings version depends on (0.4.0: Hearth 0.4.5; the next
+Kindlings release: the Hearth release after 0.4.5).
 
 Provider mechanics in depth: `hearth-standard-extensions` (with its `writing-providers.md`) and
 `hearth-macro-extensions`. Existing integrations: `kindlings-integrations`.
