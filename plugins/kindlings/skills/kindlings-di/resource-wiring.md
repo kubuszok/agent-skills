@@ -1,7 +1,7 @@
 # `DICats.wireResource` reference (kindlings-di-cats 0.4.0)
 
 ```scala
-// sbt - JVM and Scala.js only in 0.4.0
+// sbt - JVM and Scala.js in 0.4.0; also Scala Native after 0.4.0
 libraryDependencies += "com.kubuszok" %%% "kindlings-di-cats" % "0.4.0"
 ```
 
@@ -63,13 +63,10 @@ val app: Resource[SyncIO, App] = DICats.wireResource[SyncIO, App](
 | `Cyclic dependency detected for [X]` | cycle in the graph | restructure the classes so the graph is acyclic |
 | `Cannot find an implicit value of type: [...]` | a constructor's implicit parameter or a `resource[F]` context bound (e.g. `Sync[F]`) is missing | import/provide the instance for your `F` |
 
-Note: the 0.4.0 di-cats guide says a missing parameter reports *"Cannot find a value of type ..."*; the actual message
-is the `Missing dependency of type ...` form above.
-
 ## Not supported
 
 - Tagged (`@@`) disambiguation of dependencies inside `wireResource`.
-- Scala Native.
+- Scala Native in 0.4.0 (published after 0.4.0).
 
 ## Debugging
 

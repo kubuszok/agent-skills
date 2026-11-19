@@ -142,6 +142,9 @@ Map keys: `String`, primitives and boxes, `BigInt`/`BigDecimal`, `UUID`, `java.t
 those, case-object enums, and types with an implicit `JsonKeyCodec` (user-provided ones win). Other keys need
 `withMapAsArray` (compile error otherwise, with a compile-time config).
 
+With a config known only at runtime, the keys given by `fieldNameMapper` are computed once per codec instance (on first
+use), not per decode (after 0.4.0), so a mapper with side effects runs once per field per instance.
+
 ## Differences from jsoniter-scala
 
 Checked against `JsonCodecMaker.make` with the equivalent `CodecMakerConfig` for every option. Differences:

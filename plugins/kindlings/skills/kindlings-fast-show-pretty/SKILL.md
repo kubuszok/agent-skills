@@ -128,11 +128,12 @@ configurable indentation and the ADT type ascription; it does not need cats.
 
 ## Debugging, timeouts, policy
 
-Two different setting namespaces in 0.4.0:
+All settings live under `fastShowPrettyDerivation` (after 0.4.0; 0.4.0 read logging only from `fastShowPretty`):
 
 - Logging: `import hearth.kindlings.fastshowpretty.debug._` (`logDerivationForFastShowPretty`) or
-  `scalacOptions += "-Xmacro-settings:fastShowPretty.logDerivation=true"`.
-- Timeout and policy use `fastShowPrettyDerivation`: `-Xmacro-settings:fastShowPrettyDerivation.timeout=30s`,
+  `scalacOptions += "-Xmacro-settings:fastShowPrettyDerivation.logDerivation=true"` (the legacy
+  `fastShowPretty.logDerivation=true` is still accepted).
+- Timeout and policy: `-Xmacro-settings:fastShowPrettyDerivation.timeout=30s`,
   `-Xmacro-settings:fastShowPrettyDerivation.policy.enabled=opt-in`; opt-in marker
   `import hearth.kindlings.fastshowpretty.policy._` (`allowDerivationForFastShowPretty`).
 

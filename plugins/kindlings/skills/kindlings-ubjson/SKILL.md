@@ -145,6 +145,8 @@ with `withUseScalaEnumValueId`), Scala 3 `T | Null`, generic, higher-kinded and 
   discriminator + `circeLikeObjectEncoding`) fails compilation when the config is known at compile time, otherwise
   throws `IllegalArgumentException` when the codec is created.
 - **Duplicate names** after mapping / `@fieldName` / `@named`, or two leaves mapping to the same name, fail derivation.
+- **Side-effecting `fieldNameMapper`** with a runtime-only config runs once per field per codec instance (on first
+  use), not per decode (after 0.4.0).
 - **`toByteArray` throws `UnsupportedOperationException`** on a writer created over your own `OutputStream`.
 - **Not interchangeable with JSON**: same data model, binary wire format. For JSON use `kindlings-jsoniter` /
   `kindlings-circe`.

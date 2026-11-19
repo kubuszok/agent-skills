@@ -40,7 +40,7 @@ libraryDependencies += "com.kubuszok" %%% "kindlings-di-cats" % "0.4.0" // optio
 
 - `kindlings-di`: Scala 2.13 and 3, JVM, Scala.js, Scala Native. Pulls in `com.softwaremill.common::tagging`
   transitively (the `@@` tag types).
-- `kindlings-di-cats`: Scala 2.13 and 3, **JVM and Scala.js only** (no Scala Native artifact in 0.4.0). Depends on
+- `kindlings-di-cats`: Scala 2.13 and 3, JVM, Scala.js, Scala Native (Native only after 0.4.0). Depends on
   `kindlings-di` and cats-effect 3.
 
 ## Imports
@@ -131,6 +131,11 @@ val finder2 = DI.autowire[UserFinder](
 )
 val fromModule = DI.autowire[UserFinder]( DI.autowireMembersOf(dataModule) ) // seed with a module's members
 ```
+
+- `autowireMembersOf(module)` adds every public parameterless member (`val`, `lazy val`, no-arg `def`) by its declared
+  type. Unused members are fine; only a module none of whose members is used fails with
+  `unused dependencies: DI.autowireMembersOf(module)`. (0.4.0: every member had to be used, with a garbled message;
+  fixed after 0.4.0.)
 
 - A dependency is a **factory** only if its static type is a function type (also via a type alias), or on Scala 3 a
   context-function literal `(a: A) ?=> B`. A class that merely extends a function type (`List`, `Map`,
@@ -230,7 +235,8 @@ scalacOptions += "-Xmacro-settings:di.logWiring=tree"
 - **`String`/primitive dependencies.** `wireRec`/`autowire`/`DI.plan` refuse to fabricate `java.*`/`scala.*` types
   (`cannot use a primitive type or String in autowiring`). Provide such values explicitly, ideally tagged
   (`String @@ DbUrl`) or wrapped in a config class.
-- **`unused dependencies: ...` from `autowire`.** Every passed dependency must be used; remove it or fix the type.
+- **`unused dependencies: ...` from `autowire`.** Every passed dependency must be used (except individual members of
+  `autowireMembersOf(module)`); remove it or fix the type.
 - **Passing a context-function `val` to `autowire`/`wireResource` (Scala 3).** The compiler applies it before the macro
   sees it; pass a context-function *literal* instead.
 - **`DI.plan` member declared with `asDefs`/`storeAsDef`** is rebuilt on every use - do not use it for things that must
