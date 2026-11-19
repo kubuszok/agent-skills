@@ -1,4 +1,4 @@
-# build.sbt templates for sbt-kubuszok 0.2.5
+# build.sbt templates for sbt-kubuszok 0.2.6
 
 These templates are distilled from kubuszok repositories (scala-sax-parser and kindlings on sbt 2.1, hearth on
 sbt 1.13). Replace `my-lib`, the modules and the versions with your own.
@@ -161,8 +161,8 @@ lazy val natives = project
   .settings(publishSettings)
   .settings(
     projectType := ProjectType.JarOnly,
-    crossPaths := false,        // not set by JarOnly in 0.2.5
-    autoScalaLibrary := false,  // not set by JarOnly in 0.2.5
+    crossPaths := false,        // not set by JarOnly in 0.2.6
+    autoScalaLibrary := false,  // not set by JarOnly in 0.2.6
     Compile / doc / sources := Seq.empty // empty but present javadoc JAR (Central requires one)
   )
 ```

@@ -12,7 +12,7 @@ description: >-
 license: Apache-2.0
 metadata:
   library: sbt-kubuszok
-  library-version: "0.2.5"
+  library-version: "0.2.6"
 ---
 
 # Troubleshooting sbt-kubuszok builds and publishing
@@ -21,9 +21,9 @@ This catalogue was collected from the first CI and publish runs of 13 repositori
 entry gives the symptom, the cause and the fix. For the correct setup from scratch, see `sbt-kubuszok-setup` and
 `sbt-kubuszok-github-actions`.
 
-Version: written for sbt-kubuszok **0.2.5**. Check `project/plugins.sbt`. Behaviour referenced here lives in
-<https://github.com/kubuszok/sbt-kubuszok/tree/0.2.5/src/main/scala>. Several entries below are fixed by upgrading
-from 0.2.4 to 0.2.5 and deleting the workaround.
+Version: written for sbt-kubuszok **0.2.6**. Check `project/plugins.sbt`. Behaviour referenced here lives in
+<https://github.com/kubuszok/sbt-kubuszok/tree/0.2.6/src/main/scala>. Several entries below are fixed by upgrading
+from 0.2.4 to 0.2.6 and deleting the workaround.
 
 First, work out which job failed. The `build` job of ci.yml runs `sbt ci-<platform>-<scala>`. The **Sonatype
 Release** job runs `sbt ci-release`, which also runs Scaladoc, packaging, signing and upload for every cell, so it
@@ -36,7 +36,7 @@ can fail when CI was green. Read the log with `gh run view <id> --log-failed`.
 - Cause: the sbt version and the sbt-kubuszok version do not match. This typically happens when a Scala Steward PR
   bumped `sbt.version` to 2.1.x while sbt-kubuszok stayed on 0.2.3, whose bundled sbt-pgp breaks on sbt 2.1. It also
   happens when the build re-adds a bundled plugin at another version in `plugins.sbt`.
-- Fix: use sbt 2.1.x with 0.2.4+ (0.2.5), sbt 2.0.x with 0.2.3, or sbt ≥ 1.11 with 0.2.5. Bump both in one commit. Remove
+- Fix: use sbt 2.1.x with 0.2.4+ (0.2.6), sbt 2.0.x with 0.2.3, or sbt ≥ 1.11 with 0.2.6. Bump both in one commit. Remove
   bundled plugins from `plugins.sbt`.
 
 **`Build not configured to use exactly 1 platform, ide.platform must be jvm, js, or native`** (or the `ide.scala`
@@ -82,7 +82,7 @@ variant: `Unsupported ide.scala=... in dev.properties, it must be 2.13 or 3`)
 **Green CI, but no tests ran** (`No tests to run`) on sbt 2
 - Cause: sbt 2's `test` is incremental and cached. sbt-kubuszok ≤ 0.2.4 `Aliases` emitted `<id>/test`, or the
   aliases are hand-written with `/test`.
-- Fix: upgrade to 0.2.5, whose `Aliases` emit `<id>/testFull` on sbt 2, and delete `fullTests`-style rewriting.
+- Fix: upgrade to 0.2.6, whose `Aliases` emit `<id>/testFull` on sbt 2, and delete `fullTests`-style rewriting.
 
 **`FileNotFoundException: .../scoverage-data/scoverage.measurements.*`** in JVM `ci-*` on sbt 2 with `fork := true`
 - Cause: the forked test JVM writes coverage measurements into a directory that does not exist yet.
@@ -92,7 +92,7 @@ variant: `Unsupported ide.scala=... in dev.properties, it must be 2.13 or 3`)
 **IDE imports Scala 3 although `ide.scala = 2.13`**, or an NPE / `MatchError: null` from a custom `dev.properties` key
 - Cause: sbt-kubuszok ≤ 0.2.4 ignored `ide.scala` when both 2.13 and 3 were built, and `dev.props.getProperty`
   returns `null` for a missing key.
-- Fix: upgrade to 0.2.5 and read custom keys with `dev.prop("key")` (an `Option`).
+- Fix: upgrade to 0.2.6 and read custom keys with `dev.prop("key")` (an `Option`).
 
 **`found version conflict(s) in library dependencies ... org.scala-native:test-interface_native0.5_3:0.5.12 (strict) is selected over 0.5.8`**
 on a Scala Native project
@@ -108,9 +108,8 @@ on a Scala Native project
 - Fix: run `sbt --server ...` (PATH wrapper in `sbt-kubuszok-github-actions`).
 
 **Version is a timestamp (`20261118T202211`) or tags are ignored locally**
-- Cause: the build runs in a `git worktree`; sbt-git's JGit cannot read it.
-- Fix: run version-sensitive tasks (`publishLocal` for other builds, releases) from a normal clone. Do not set
-  `git.useConsoleForROGit := true` (see `sbt-kubuszok-setup` gotchas: it makes untagged commits look like releases).
+- Cause: the build runs in a `git worktree` on sbt-kubuszok 0.2.5 or older; sbt-git's JGit cannot read it.
+- Fix: upgrade to 0.2.6, which reads worktrees through the `git` CLI. Remove any hand-set `useConsoleForROGit`.
 
 ## Release / snapshot job fails
 
@@ -145,7 +144,7 @@ on a Scala Native project
 on 2.13)
 - Cause: CI did not run `doc` for that cell: sbt-kubuszok ≤ 0.2.4 (whose `ci` had no `doc`), `docInCi = false`,
   hand-written aliases, or a cell missing from the CI matrix.
-- Fix: fix the links. Upgrade to 0.2.5 (its `ci` runs `<id>/doc` for published modules), or run `sbt +publishLocal`
+- Fix: fix the links. Upgrade to 0.2.6 (its `ci` runs `<id>/doc` for published modules), or run `sbt +publishLocal`
   before merging.
 
 **`java.lang.OutOfMemoryError: Java heap space`** in `Compile / doc` during `ci-release`

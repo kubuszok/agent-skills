@@ -1,4 +1,4 @@
-# Workflow templates for sbt-kubuszok 0.2.5
+# Workflow templates for sbt-kubuszok 0.2.6
 
 The release workflow follows kubuszok/sbt-kubuszok's own `.github/workflows/release.yml`; the CI workflow follows
 kubuszok/kindlings and kubuszok/hearth. Not every kubuszok repo matches these templates yet; the templates are the

@@ -12,7 +12,7 @@ description: >-
 license: Apache-2.0
 metadata:
   library: sbt-kubuszok
-  library-version: "0.2.5"
+  library-version: "0.2.6"
 ---
 
 # GitHub Actions for sbt-kubuszok projects
@@ -22,8 +22,8 @@ publishes `<tag>-<n>-g<sha>-SNAPSHOT`. So the workflows stay short: a CI workflo
 aliases, and a release workflow that runs `sbt ci-release` on every master push and every tag. Do not add version
 computation, `publishTo` logic or `sonatypeBundleRelease` steps.
 
-Version: written for sbt-kubuszok **0.2.5**. Check `project/plugins.sbt`; on other versions compare with
-<https://github.com/kubuszok/sbt-kubuszok/blob/0.2.5/src/main/scala/kubuszok/sbt/KubuszokPlugin.scala> and the
+Version: written for sbt-kubuszok **0.2.6**. Check `project/plugins.sbt`; on other versions compare with
+<https://github.com/kubuszok/sbt-kubuszok/blob/0.2.6/src/main/scala/kubuszok/sbt/KubuszokPlugin.scala> and the
 plugin's own workflows. Build setup (aliases, `projectType`) is in `sbt-kubuszok-setup`. Error texts are in
 `sbt-kubuszok-troubleshooting`.
 
