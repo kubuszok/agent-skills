@@ -130,6 +130,12 @@ Behaviour changes:
   empty `String` element/attribute -> `""` (was `MissingContent`), absent `String` -> `MissingElement`; `Option`
   attributes written as the value / omitted for `None` (were `Some(v)` / `None`); `withTransientEmpty` no longer omits
   empty `String`s; with `withTransientNone` an empty `Option[String]` element decodes as `Some("")`.
+- xml (breaking): `withAttributesByDefault` / `XmlFieldMode.Attribute` is decoded too, and only single text values
+  (`String`, primitives, `BigDecimal`, `BigInt`, value types over them - written unwrapped - and `Option`s of these)
+  become attributes; collections, maps, case classes, sealed traits and enums are child elements in both modes (were
+  `toString` attributes). `withUseDefaults` also fills absent attributes. `String`/`Char` keep whitespace exactly (were
+  trimmed; trim yourself if needed); for `Option[String]` only an empty element is `None` (`<n> </n>` -> `Some(" ")`).
+  `toXmlString` keeps text exactly (was reformatted by `PrettyPrinter`).
 - derivation policy: gates only structural derivation - collections, `Option`, `Either`, value types, tuples are never
   gated (`derived[List[User]]` at a denied site compiles when `User` has an instance).
 - avro: a type in the empty package has no namespace on Scala 2 either (was `<empty>`) - schema change for such types.

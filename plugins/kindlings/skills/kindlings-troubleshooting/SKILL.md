@@ -200,6 +200,8 @@ Look for repeated implicit searches and rules evaluated for the same type many t
 - **Kindlings 0.4.0 needs Hearth 0.4.5+** on the compile classpath - do not force an older `com.kubuszok::hearth`
   with `dependencyOverrides`; and do not mix Kindlings artifacts of different versions (0.4.0 is not binary compatible
   with 0.3.x).
+- **xml open bugs** (not fixed): `XmlConfig.withEnumAsStrings` has no effect; `@xmlWrapper` is ignored;
+  `@xmlAttribute` on a non-text field writes its `toString`. See `kindlings-xml`.
 - **Integration not picked up** - integration jars are discovered via the compile classpath of the module where the
   derivation expands; `% Test`-scoped or added only to a downstream module, they are invisible. See
   `kindlings-integrations`.
@@ -226,7 +228,7 @@ Look for repeated implicit searches and rules evaluated for the same type many t
 | policy: opt-in mode also gated collections/`Option`/value types (`derived[List[User]]` denied); untyped `val x = X.derived[A]` failed with "illegal cyclic reference" / "Recursive value needs type" | - | after 0.4.0 |
 | diff: `modifyField(name).using(d)` ignored; `diffDerivation.logDerivation` not read; ANSI codes in plain `seqDiff` names | - | after 0.4.0 |
 | fast-show-pretty: `fastShowPrettyDerivation.logDerivation` not read | - | after 0.4.0 |
-| xml: absent `Option`/collection elements failed; empty `String` failed with `MissingContent`; `Option` attributes written as `Some(v)` | - | after 0.4.0 |
+| xml: absent `Option`/collection elements failed; empty `String` failed with `MissingContent`; `Option` attributes written as `Some(v)` (also with a runtime config); `withAttributesByDefault` output did not decode (`MissingElement`); `String`s trimmed; runtime-config encoder of a wide case class ran the compiler out of memory | - | after 0.4.0 |
 | scalacheck: `ClassCastException: scala.util.Right cannot be cast to ...` for `Either` smart-constructor value types | - | after 0.4.0 |
 | cats: `Functor.derived` for recursive case classes (`found Tree[W2], required Tree[Any]`); `ConsK` `ClassCastException` for a non-`List` tail | - | after 0.4.0 |
 | circe (Scala 3): `KindlingsCodecAsObject.derive` lacked `enumAsStrings` | - | after 0.4.0 |

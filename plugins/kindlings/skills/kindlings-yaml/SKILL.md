@@ -132,8 +132,10 @@ case class User(
   subtypes are ambiguous - use `withDiscriminator` or `withWrappedSubtypes` for unambiguous ADTs.
 - A repeated key in a mapping decoded as a case class gives its **last** value, and a non-scalar key fails with
   `Parameter of a class must be a scalar value`, as scala-yaml (0.4.0: first value / key ignored).
-- Derived instances resolve field/subtype instances (e.g. an `implicit def` `YamlEncoder`) and runtime-config subtype
-  names once per instance, not per call (after 0.4.0).
+- Derived encoders and decoders resolve field/subtype instances (e.g. an `implicit def` `YamlEncoder`) and, with a
+  `YamlConfig` only known at runtime, the transformed field (`transformMemberNames`) and subtype names once per instance,
+  not per call (after 0.4.0). Inline `KindlingsYamlEncoder.encode` / `KindlingsYamlDecoder.decode` compute them on every
+  call.
 
 ## Gotchas
 
