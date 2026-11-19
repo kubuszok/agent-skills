@@ -175,14 +175,18 @@ Look for repeated implicit searches and rules evaluated for the same type many t
   fails on 0.4.0 (fixed after 0.4.0; wide decoders of other modules were also shrunk below the JIT limit). On 0.4.0:
   write that one instance by hand, or split the record into nested case classes (this changes the Avro schema).
   Kindlings modules must all be on the same version, so downgrading only the Avro module is not an option.
-- **`HearthAssertionError: ... MIO timeout is already set — you are re-entering runToExprOrFail`** (Hearth bug, not
-  fixed) - Scala 2.13, when a `val` holding a derived instance has **no explicit type**
+- **`HearthAssertionError: ... MIO timeout is already set — you are re-entering runToExprOrFail`** (Hearth bug, fixed
+  after 0.4.0) - Scala 2.13, when a `val` holding a derived instance has **no explicit type**
   (`implicit val codec = KindlingsJsonValueCodec.derived[A]`) and the same file derives a type with a sealed-trait
-  field. Fix: always annotate the type of vals/defs holding derived instances
+  field. On 0.4.0: annotate the type of vals/defs holding derived instances
   (`implicit val codec: JsonValueCodec[A] = ...`).
-- **`assertion failed: missing outer accessor in class X`** (Scala 3 compiler crash, Hearth bug, not fixed) - a sealed
-  trait declared inside a class (test suite, `.sc` script) whose case objects live in its companion. Declare the
-  hierarchy at the top level or in an `object`.
+- **`assertion failed: missing outer accessor in class X`** (Scala 3 compiler crash, Hearth bug, fixed after 0.4.0) - a
+  sealed trait declared inside a class (test suite, `.sc` script) whose case objects live in its companion. On 0.4.0:
+  declare the hierarchy at the top level or in an `object`.
+- **`Internal error: unable to find the outer accessor symbol of class X`** (Scala 2.13, Hearth bug, not fixed) - the
+  same shape (sealed trait declared inside a class, case object in the trait's companion) with a **decoder or codec**;
+  encoders are not affected. Declare the hierarchy at the top level or in an `object`, or put the case object next to
+  the trait instead of in its companion.
 - **Error text with `\u001b[35m`-style codes** (raw `compileErrors` string, IDE problem view) - 0.4.0 on Scala 2.13
   coloured type names in derivation errors; fixed after 0.4.0 (debug logs keep colours). On 0.4.0 strip
   `\u001b\[[0-9;]*m` before comparing.

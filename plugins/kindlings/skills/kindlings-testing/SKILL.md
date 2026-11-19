@@ -248,10 +248,11 @@ Test sources derive a lot at once (`Arbitrary`, `Shrink`, `Diff` for the whole m
   from `compileErrors`** - 0.4.0 with an opt-in derivation policy: `val errors = compileErrors(...)` without a type, or
   on 2.13 any untyped `val e = X.derived[A]`, breaks the derivation (fixed after 0.4.0). On 0.4.0 write
   `val errors: String = ...`.
-- **`assertion failed: missing outer accessor in class MySuite` (Scala 3 compiler crash, Hearth bug, not fixed)** - a
-  sealed trait whose case object sits in its companion (`object St { case object On extends St }`), declared inside a
-  class (suite, `.sc` script), derived by Kindlings (reproduced with circe and diff derivation).
-  Move test models to the top level or a top-level `object`.
+- **Sealed trait whose case object sits in its companion (`object St { case object On extends St }`), declared inside
+  a class (suite, `.sc` script)** - Scala 3 on 0.4.0: `assertion failed: missing outer accessor in class MySuite`
+  compiler crash (fixed after 0.4.0); Scala 2.13, decoders/codecs (not encoders), not fixed yet:
+  `Internal error: unable to find the outer accessor symbol of class MySuite`. Move test models to the top level or a
+  top-level `object`.
 - **Golden passes in CI although nobody wrote it** - the helper created the missing file. Fail on missing files and
   regenerate only behind an explicit switch (`UPDATE_GOLDEN`), see [golden-files.md](golden-files.md).
 - **Round-trip test fails on generated data** - check the table above before suspecting the codec; restrict the
