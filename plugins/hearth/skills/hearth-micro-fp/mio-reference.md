@@ -109,7 +109,7 @@ A failed program still has its logs: render them in the error message.
 
 | Name | Meaning |
 |---|---|
-| `Environment.withMioTimeout(timeout)(thunk): Either[MIO.MioTimeoutException, A]` | sets the global deadline; not re-entrant (`HearthAssertionError` if a deadline is already set) |
+| `Environment.withMioTimeout(timeout)(thunk): Either[MIO.MioTimeoutException, A]` | sets the global deadline; not re-entrant within one expansion (`HearthAssertionError` if the same expansion already set a deadline); a run of another expansion nested by the compiler gets its own deadline |
 | `MIO.MioTimeoutException(capturedState, prettyPrintedMessage)` | `capturedState.logs` holds the logs collected before the deadline |
 | `Environment.handleMioTerminationException(thunk)` | turns `MIO.MioTerminationException` (Ctrl+C, SIGTERM, thread interrupt) into a report of the last `MIO` step, `MLocal` values and logs |
 | `-Xmacro-settings:hearth.mioTerminationShouldUseReportError=true` (default) | report with `reportErrorAndAbort` (aborts only the current macro) |
