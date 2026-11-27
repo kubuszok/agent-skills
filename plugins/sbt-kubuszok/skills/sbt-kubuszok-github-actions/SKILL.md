@@ -166,6 +166,9 @@ Also ignore hand-pinned `-SNAPSHOT` dependencies of your own libraries.
     are hand-written. Run `sbt +publishLocal` before tagging.
 - **Release does not wait for CI.** Snapshots of a red commit still get published. If that matters, gate it (variant
   in workflows.md).
+- **429s in setup steps** (`Error downloading ... latest.stable` while installing scalafmt/scala-cli/sbt) come from
+  unpinned, uncached `coursier/setup-action` apps: pin the tool versions and cache every job (workflows.md, "Pin tool
+  versions").
 - **Transient Central errors** on snapshot upload (`HTTP response code: 429`, `Connection is closed`) are rate limits.
   Re-run the job; they are not configuration errors.
 - **Nested sbt builds** (for example a build plugin in `my-build/` with its own `project/`) need their own

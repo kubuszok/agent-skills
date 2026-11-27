@@ -27,9 +27,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0          # .scalafmt.conf `project.git = true` needs git
+      - uses: coursier/cache-action@v9
       - uses: coursier/setup-action@v3.1.0
         with:
-          apps: scalafmt          # uses the version from .scalafmt.conf; covers build.sbt too
+          apps: scalafmt:3.11.5   # pin to the `version` in .scalafmt.conf (see "Pin tool versions" below)
       - run: scalafmt --check
 
   build:
@@ -116,6 +117,18 @@ PR snapshot" in SKILL.md). `ci-release` builds every matrix cell (JVM, JS and Na
 If ci.yml installs extra native libraries, install them here as well.
 
 ## Variants
+
+### Pin tool versions and cache every setup step
+
+`coursier/setup-action` resolves an unpinned app (`apps: scalafmt`, `apps: scala-cli`) to `latest.stable` /
+`latest.release`, which fetches fresh version metadata from Maven Central in every job, cache or not. GitHub runners
+share IPs, so busy repos get `HTTP 429` ("Error downloading ... latest.stable") in setup steps before any build runs.
+
+- Pin tools whose version you know: `apps: scalafmt:<version from .scalafmt.conf>`, `apps: scala-cli:<version>`.
+  The `sbt` launcher can stay unpinned (it reads `project/build.properties`), but only in cached jobs.
+- Put `coursier/cache-action@v9` before `coursier/setup-action` in **every** job, including the formatting job and
+  small script jobs, and before `sbt/setup-sbt` in the dependency-graph workflow.
+- A 429 that still happens is transient: re-run the failed job.
 
 ### sbt 2: run sbt in the foreground
 
