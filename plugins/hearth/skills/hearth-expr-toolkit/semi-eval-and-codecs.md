@@ -47,7 +47,8 @@ An override for `X` replaces evaluation of the whole `X`-typed sub-tree.
   assignments or local definitions - the body runs when the function is applied.
 - Scala 3 only: references to immutable local `val`s outside the tree are replaced by their right-hand side (so the
   non-`inline` arguments of an `inline def` are evaluable). Scala 2 cannot read them.
-- Java enum values.
+- Java enum values and other Java static fields (`java.math.RoundingMode.FLOOR`, `java.io.File.separator`), also
+  qualified and nested in other expressions - e.g. an annotation argument read with `decodedConstructorArguments`.
 
 ## What it refuses (and the messages)
 

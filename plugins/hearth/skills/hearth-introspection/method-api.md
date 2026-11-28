@@ -34,6 +34,10 @@ Step merging rules: consecutive value lists form one `NeedsValues`; an `implicit
 a list whose types mention an earlier parameter (`(b: Box)(t: b.T)`) starts a new step; Scala 3 interleaved type
 clauses add steps. Keep applying while the next step is `ApplyValues`.
 
+A Scala 3 extension method (`extension (v: Vec) def copy(x: Double = v.x)`, listed among `Type[Vec].methods` when
+it is in the companion) takes its receiver as its first parameter list: `def copy(v: Vec)(x: Double = <default>)`.
+Pass the receiver as an argument (`"v" -> vec`) like any other parameter; defaults reading it get it.
+
 Chain classes: `Method.OnInstance` (`apply(instance)`, `applyUntyped`), `Method.ApplyTypes` (`apply(typeArgs)`),
 `Method.ApplyValues` (`apply(arguments)`), `Method.Result[R]` (`build(): Either[String, Expr[R]]`). Constructors and
 static/object methods start without `OnInstance`.
