@@ -252,7 +252,11 @@ Test sources derive a lot at once (`Arbitrary`, `Shrink`, `Diff` for the whole m
   a class (suite, `.sc` script)** - Scala 3 on 0.4.0: `assertion failed: missing outer accessor in class MySuite`
   compiler crash (fixed after 0.4.0); Scala 2.13, decoders/codecs (not encoders), not fixed yet:
   `Internal error: unable to find the outer accessor symbol of class MySuite`. Move test models to the top level or a
-  top-level `object`.
+  top-level `object`. Case classes **with default values** nested in a trait (`trait T { case class U(a: Int = 1) }`)
+  hit the same kind of failure (Hearth bug, not fixed): declare them in an `object`.
+- **Goldens changed after upgrading past 0.4.0 without a model change** - expected for `private val` fields (now
+  encoded), Java enum order on Scala 3 (declaration order), tuples in HOCON (lists), xml annotations, avro4s-4 parity,
+  tapir annotation inheritance, scalacheck sample sizes; see `kindlings-migration` (upgrading).
 - **Golden passes in CI although nobody wrote it** - the helper created the missing file. Fail on missing files and
   regenerate only behind an explicit switch (`UPDATE_GOLDEN`), see [golden-files.md](golden-files.md).
 - **Round-trip test fails on generated data** - check the table above before suspecting the codec; restrict the

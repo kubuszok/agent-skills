@@ -139,6 +139,9 @@ with `withUseScalaEnumValueId`), Scala 3 `T | Null`, generic, higher-kinded and 
 - **`C(xs = Nil)` decodes back with the default `xs`** when the field has a non-empty default (jsoniter semantics).
   Fix: `withEmptyCollectionsAsEmpty`. Similarly `None` in a field whose default is `Some(...)` decodes as the default
   unless `withRequireDefaultFields`.
+- **`'b' parameter of 'C' should be defined as 'val' or 'var' in the primary constructor.`** - a `private val` (or
+  non-`val`) constructor parameter has no accessor; as jsoniter-scala, this stays a compile error (other Kindlings
+  modules encode such fields after 0.4.0). Make it a public `val`, or `@transientField` with a default.
 - **`Some(None)` round-trip**: nested `Option[Option[A]]` is encoded as the ADT `Option` by default so it survives;
   `withSkipNestedOptionValues` flattens it.
 - **Contradictory config** (`requireCollectionFields` + `transientEmpty`, `requireDefaultFields` + `transientDefault`,
