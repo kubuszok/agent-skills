@@ -11,7 +11,7 @@ All are called as `<Companion>.derived[T]` after `import hearth.kindlings.catsde
 | `ShowPretty` | `hearth.kindlings.catsderivation` | multi-line, `showLines`; `@sensitiveData` |
 | `Eq`, `Order`, `PartialOrder`, `Hash` | `cats.kernel` | sealed traits: different subtypes are unequal / ordered by subtype order (Scala 3: declaration order; Scala 2: by name); `PartialOrder`: fields with only a `PartialOrder` (e.g. `Set`) allowed, different subtypes incomparable (`NaN`) |
 | `Semigroup`, `Monoid`, `CommutativeSemigroup`, `CommutativeMonoid`, `Band`, `Semilattice`, `BoundedSemilattice`, `Group`, `CommutativeGroup` | `cats.kernel` | products only (field-wise); every field needs the same type class |
-| `Empty` | `alleycats` | products: field-wise; sealed traits: the single subtype forming an `Empty` (a subtype with an implicit `Empty` is preferred) |
+| `Empty` | `alleycats` | products: field-wise; sealed traits: the single subtype forming an `Empty` (a subtype with an implicit `Empty` is preferred); after 0.4.0 also types recursing through `Option` / a sealed type |
 
 Field instances are summoned, or derived recursively for nested case classes / sealed traits (unless an implicit
 `StrictDerivation` is in scope).
@@ -30,16 +30,17 @@ instances) and, for recursive types, fields mentioning the type itself (`childre
 | `Reducible`, `NonEmptyTraverse` | `cats` | `Foldable`/`Traverse` for every wrapping type and at least one never-empty field (`A` itself or a `Reducible`/`NonEmptyTraverse` wrapper), e.g. `Nel[A](head: A, tail: List[A])` |
 | `SemigroupK`, `MonoidK`, `EmptyK` (`alleycats`) | | `G[A]` fields combined with `SemigroupK[G]` / `MonoidK[G]` / `EmptyK[G]` |
 | `NonEmptyAlternative`, `Alternative` | `cats` | every field wraps `A` in a (NonEmpty)Alternative type (`G[H[A]]` also needs `H: Applicative`); a bare `A` field is rejected |
-| `ConsK` | `alleycats` | case classes with head + nested tail (`Nel[A](head: A, tail: List[A])`); list-like sealed traits not supported |
+| `ConsK` | `alleycats` | case classes with head + nested tail (`Nel[A](head: A, tail: List[A])`); after 0.4.0 also list-like sealed traits (`IList` with `ICons`/`INil`) |
 
-A wrapping type constructor that is itself one of your case classes (`middle: Nel[A]`) needs its instance in scope -
-HKT derivations do not derive nested type constructors.
+A wrapping type constructor that is itself one of your case classes (`middle: Nel[A]`) is derived recursively after
+0.4.0; 0.4.0 needed its instance in scope. After 0.4.0 `Functor`/`Foldable`/`Traverse` also support recursion through
+another type constructor (`rest: Option[Self[A]]`).
 
 ## Kind `(*, *) -> *`
 
 | Type class | Package | Notes |
 |---|---|---|
-| `Bifunctor`, `Bifoldable`, `Bitraverse` | `cats` | case classes and sealed traits with two type parameters (e.g. `Result[A, E]`) |
+| `Bifunctor`, `Bifoldable`, `Bitraverse` | `cats` | case classes and sealed traits with two type parameters (e.g. `Result[A, E]`); after 0.4.0 also fields nesting them (`List[E]`, `Either[A, E]`, data types) and recursive types (0.4.0: `ClassCastException`) |
 
 ## Debug / settings
 
