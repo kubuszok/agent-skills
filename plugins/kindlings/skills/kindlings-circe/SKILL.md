@@ -220,6 +220,18 @@ Scala 3 rules. Add golden (round-trip + fixed JSON) tests for every type on the 
 - **`@JsonCodec` "enable macro annotations (-Ymacro-annotations)"** - add the flag on Scala 2.13; on Scala 3 use
   `derives`.
 - **Case class with several parameter lists** - rejected at compile time (as circe does).
+- **User generic instance ignored, field derived structurally** (0.4.0) - `implicit def enc[A](implicit a: Encoder[A]):
+  Encoder[Page[A]]` was skipped when `Encoder[Item]` itself had to be derived (different JSON, no error). After 0.4.0
+  Kindlings derives the missing instances of the field type's **type arguments** (also for recursive types) and uses
+  your instance. Still not completed: instances needing another type class (`Encoder.AsObject[A]`, `Show[A]`), types
+  that are not type arguments of the field type (`Encoder[List[A]]`), collections/options/value types/tuples as the
+  field type. Workaround (and on 0.4.0): put the nested instance in scope first,
+  `implicit val item: Encoder[Item] = KindlingsEncoder.derived[Item]`.
+- **`The implicit search for X failed because the macro expansion of a candidate crashed (...)`** (after 0.4.0) - an
+  implicit macro (yours or a library's) threw while Kindlings searched for `X`; the message contains the exception.
+  Kindlings stops instead of silently deriving `X` structurally. Fix the crashing macro or provide `X` as a value.
+- **`private val` constructor fields** are encoded and decoded like other fields (as circe-generic); 0.4.0 left them
+  out of the JSON.
 - **Generic types on Scala 3**: `case class Box[A](a: A) derives KindlingsEncoder` asks for `KindlingsEncoder[A]` for
   each type argument; built-in types are handled (fixed bug #206 encoded `String` as an array of chars in older
   versions). To reuse plain circe instances for `A`, write

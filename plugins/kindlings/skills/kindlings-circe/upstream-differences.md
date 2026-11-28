@@ -19,6 +19,7 @@ Source of truth: https://kindlings.readthedocs.io/en/0.4.0/feature-parity/#circe
 | Error messages / cursor history | Scala 2 shapeless wording differs (`JSON decoding to CNil should never happen`, ...) | Scala 3 core wording on both versions (`type Shape has no class/object/case named 'X'.`, `Strict decoding Person - unexpected fields: a, b; valid fields: name, age.`, ...) |
 | `enumAsStrings` on non-singleton cases | compile-time error | compile-time error when the config is known at compile time; otherwise `DecodingFailure` / `IllegalArgumentException` at runtime |
 | Patch decoder with `useDefaults` | generic-extras throws `ClassCastException` | defaults ignored, absent key keeps the value |
+| Non-object JSON for a case class whose fields all have defaults/`Option`s (`useDefaults`) | Scala 3 core: rejected; generic-extras (Scala 2): any JSON (`null`, `1`, `[]`) decodes to the all-defaults value | rejected on both versions |
 
 ## Improvements (opt-in or additive)
 
@@ -53,3 +54,7 @@ Source of truth: https://kindlings.readthedocs.io/en/0.4.0/feature-parity/#circe
 - `useDefaults` + a `Decoder[Option[X]]` decoding an absent key to a value now wins over the default.
 - Case objects outside a sum reject extra keys under strict decoding.
 - More configurations are evaluated at compile time, so some runtime failures became compile errors.
+- After 0.4.0: `private val` constructor fields (`case class C(a: Int, private val b: String)`) are written and read
+  (0.4.0 left them out, so its output did not decode).
+- After 0.4.0: a field whose type has a user generic instance needing a derived dependency uses that instance (0.4.0
+  silently derived the field structurally) - see the SKILL's Gotchas.

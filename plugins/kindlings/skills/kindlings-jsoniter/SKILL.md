@@ -142,6 +142,12 @@ Map keys: `String`, primitives and boxes, `BigInt`/`BigDecimal`, `UUID`, `java.t
 those, case-object enums, and types with an implicit `JsonKeyCodec` (user-provided ones win). Other keys need
 `withMapAsArray` (compile error otherwise, with a compile-time config).
 
+After 0.4.0, matching jsoniter-scala: `scala.Enumeration` values are looked up at runtime by name or id (private /
+lazy / `var` values, values created by methods or added after the codec was created work); a codec derived for a case
+object (`derived[Leaf.type]`) reads any JSON object or `null` as the object and its `nullValue` is the object; boxed
+primitives (`derived[java.lang.Integer]`) reject a top-level `null` (0.4.0 read it as zero); writing a `null` Java enum
+value throws `NullPointerException`; a malformed `null` of an `Option` reports `expected value or null`.
+
 With a config known only at runtime, the keys given by `fieldNameMapper` are computed once per codec instance (on first
 use), not per decode (after 0.4.0), so a mapper with side effects runs once per field per instance.
 
@@ -151,10 +157,17 @@ Checked against `JsonCodecMaker.make` with the equivalent `CodecMakerConfig` for
 
 - The 7 default values above (`jsoniterScalaDefaults` restores them).
 - Recursive types need no `allowRecursiveTypes` flag.
-- Without a discriminator a case object is also read from `{"Leaf":{}}` (superset).
+- Without a discriminator a case object is also read from `{"Leaf":{}}` and (after 0.4.0) `{"Leaf":null}` (superset).
 - A Scala 3 `T | Null` field holding `null` is written as `null` without `transientNull` (upstream throws an NPE).
 - With `checkFieldDuplication` off, a repeated key's decoder gets the field default (upstream: the earlier value).
 - Error for another JSON type in a defaulted field says `expected '{'` (upstream adds `or null`).
+- A field typed as an abstract collection whose element type is a collection subtype of it
+  (`mutable.Map[K, mutable.ListMap[..]]`, `mutable.IndexedSeq[mutable.ArrayStack[Int]]`) is built as the element's
+  implementation (`ListMap`, `Stack`): Scala's implicit search finds the element companion's factory first (every
+  Kindlings module that builds collections). Declare the concrete type (`mutable.HashMap[..]`) to choose.
+- Known gaps (Hearth bugs): case classes **with default values** nested in a trait
+  (`trait T { case class U(a: Int = 1) }`) fail after expansion; Java enums nested in a Java class (`Thread.State`) on
+  Scala 3; on Scala 2 a field name starting or ending with a space.
 - Extras: `withEnumAsStrings`, `withEmptyCollectionsAsEmpty`, `Unit` coded as `{}`, `writeToString`/`readFromString`
   and `syntax` without keeping an instance.
 
@@ -176,6 +189,15 @@ Checked against `JsonCodecMaker.make` with the equivalent `CodecMakerConfig` for
 - **`List(1)` read back for a written `[]`** - field default + `[]`; add `withEmptyCollectionsAsEmpty`.
 - **`'a' parameter of 'C' should be defined as 'val' or 'var' in the primary constructor.`** - a constructor parameter
   without a public accessor; make it a `val` or `@transientField` (with a default).
+- **User generic codec ignored, field derived structurally** (0.4.0) - an `implicit def codec[A](implicit
+  c: JsonValueCodec[A]): JsonValueCodec[Page[A]]` was skipped when `JsonValueCodec[Item]` had to be derived. After
+  0.4.0 Kindlings derives the missing codecs of the field type's type arguments (encode-only / decode-only, also for
+  recursive types) and uses your codec. Not covered: codecs of types that are not type arguments of the field type,
+  collections/options/value types as the field type. Workaround (and on 0.4.0): put
+  `implicit val item: JsonValueCodec[Item] = KindlingsJsonValueCodec.derived[Item]` in scope first. A candidate macro
+  that throws now fails with `The implicit search for X failed because the macro expansion of a candidate crashed`.
+- **Scala 3: `X is not sealed, not an enumeration, and not a union type` for a JDK enum** none of whose constants the
+  module refers to - fixed after 0.4.0; see `kindlings-troubleshooting`.
 - **`@named` / `@transient` from `jsoniter_scala.macros` ignored** - import Kindlings' annotations instead.
 - **Untrusted input** - insert limits are off by default; set `withMapMaxInsertNumber(1024)` /
   `withSetMaxInsertNumber(1024)` or start from `jsoniterScalaDefaults`.
