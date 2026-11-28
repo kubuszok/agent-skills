@@ -149,7 +149,58 @@ Behaviour changes:
   pureconfig, sconfig, avro, yaml, cats; scalacheck: once when the generator is built); runtime-config
   `fieldNameMapper` (jsoniter, ubjson) and subtype-name mappers (circe, sconfig, yaml) run once per instance.
 
+- `private val` constructor fields (`case class C(a: Int, private val b: String)`) are now encoded / shown / compared
+  by circe, pureconfig, sconfig, xml (encoders), fast-show-pretty, cats (`Show`/`Eq`/`Order`/`Hash`; `Semigroup`,
+  `Monoid`, `Functor`, `Traverse` & co. now derive) and diff; avro and yaml write them too (as avro4s / scala-yaml).
+  jsoniter / ubjson: still a compile error, as jsoniter-scala.
+- circe / jsoniter: a field whose type has a user generic instance (`implicit def enc[A: Encoder]: Encoder[Page[A]]`)
+  needing a derived dependency now uses that instance (0.4.0 silently derived the field structurally) - the JSON of
+  such fields changes. A crashing implicit macro candidate is now an error (`The implicit search for X failed because
+  the macro expansion of a candidate crashed`), not "not found".
+- Scala 3, all modules: Java enum constants always in declaration order (0.4.0: referred-to constants first, so cats
+  `Order`, tapir enumerations, generators, Avro ENUMs could change between builds); JDK enums whose constants the module
+  never mentions derive (0.4.0: `is not sealed, not an enumeration, and not a union type`).
+- jsoniter: `Enumeration` values looked up at runtime; boxed primitives reject a top-level `null` (were zero); case
+  object codecs read any object or `null`; `{"Leaf":null}` accepted; malformed `Option` null says `expected value or
+  null`. jsoniter-json: numbers read exactly (0.4.x rounded to 34 digits), `JsonNumber` keeps its kind (no longer a
+  case class), `expected JSON value` instead of `illegal number`.
+- xml (breaking): `@xmlWrapper` / `@xmlUnwrapped` / `withEnumAsStrings` / `@xmlDiscriminator` implemented (were
+  ignored); `withNoDiscriminator` writes `<shape><Circle>..</Circle></shape>` and nested sealed traits the leaf name
+  (old output did not decode); `withEnumAsStrings` on a sum with case classes, `@xmlAttribute` on an enum without it
+  or on a non-text field are compile errors; fields next to `@xmlContent` become attributes; attribute values of
+  built-in types ignore user `XmlDecoder`s.
+- avro (avro4s 4 parity): `@avroProp` values are plain Strings (`"1"` no longer the number 1); `null` Boolean ->
+  `false`; decimals over the precision rejected, too many decimal places -> `ArithmeticException` unless
+  `withRoundingMode`; field `@avroNamespace` is deep, sealed parent's namespace inherited; `Enumeration` symbols by id
+  (were by name on Scala 2); generic records named after an `@avroName` type argument; `@avroFixed` pads short values;
+  `String` no longer decoded from non-strings via `toString`; out-of-range timestamps throw `ArithmeticException`.
+- pureconfig / sconfig: tuples written as lists `[a, b]` (objects still read); `ReadsMissingKeys` /
+  `WritesMissingKeys` and plain user `Option` instances used as upstream; case objects read only from objects and
+  honour `allowUnknownKeys = false` (new `UnknownKey`s under `withStrictDecoding`); sconfig `ConfigDecodingError` has
+  a new case `WrongSizeList` (exhaustive matches).
+- yaml: map keys use `YamlKeyDecoder` / `YamlKeyEncoder` - a `YamlDecoder[K]` (e.g. custom `YamlDecoder[String]`)
+  no longer affects scalar keys; enum-of-case-object keys are case names (were empty mappings that collided);
+  `String`-subtype keys (opaque, Iron) go through their constructor; derived collections/maps fail with scala-yaml's
+  messages; null / non-scalar keys of `Map[String, V]` rejected; defaults evaluated only when absent; list/map decoding
+  stops at the first failing item (scala-yaml decodes all; same error reported).
+- tapir-schema (OpenAPI changes): annotations inherited from sealed parents and their members, `@encodedName` on a
+  type names its schema, declaration-order annotations on Scala 3, `Enumeration` schemas named after the object,
+  union types `A_or_B`, a `Map`'s own schema not optional.
+- scalacheck: same values as ScalaCheck / scalacheck-derived for a seed (`Option` via `Gen.option`, collections up to
+  `size`, `Either`/`Try` without size reduction, nested sealed traits flattened) - properties may see larger values.
+- optics: `modifyAll` follows quicklens' path tree (shared traversals once, overlapping paths in order written).
+- di: declared members of the enclosing class rank before inherited ones (an inherited member + a declared `@Module`
+  member of the same type is now ambiguous).
+- mock: abstract eager `val`s hold their default in strict mocks too (was "Unexpected call" on construction).
+- cats: nested/recursive Bi*/Functor/Foldable/Traverse fields work (0.4.0: `ClassCastException`).
+
 Fixed: avro "Method too large" (#308); scalacheck `ClassCastException` for `Either` smart-constructor value types; cats
 `Functor` for recursive case classes, `ConsK` `ClassCastException`; circe `KindlingsCodecAsObject.derive(enumAsStrings
 = ...)` (Scala 3); untyped `val x = X.derived[A]` under an opt-in policy; tapir `PreferSchemaConfig` hint compiles.
-New: `hearth.kindlings.parser.MachineStatus`; `kindlings-di-cats` for Scala Native.
+Also fixed: Scala 2 `Enumeration` `Arbitrary` and > 3-subtype generators; cats-tagless `Kleisli`-like case-class
+algebra fields; avro "Not in union" below a field `@avroNamespace`; Scala 2 `EmptyK` "is never used" warning.
+New: `hearth.kindlings.parser.MachineStatus`; `kindlings-di-cats` for Scala Native; yaml `withAccumulatingErrors`,
+`YamlDecodingFailures`, key codecs; avro `withRoundingMode`, `@avroUnionPosition`, `AvroIO.toDataFile`/`fromDataFile`;
+jsoniter-json `JsonCodec.jsonCodec(...)`; pureconfig/sconfig Scala 3 generic tuples; sconfig `WritesMissingKeys`;
+cats `ConsK` for list-like sealed traits; cats-tagless sealed/enum algebras; di `@Inject`, `autowire(classOf[..])`;
+optics `.at`/`.index` on arrays and any `Seq`, hand-written `copy` classes.
