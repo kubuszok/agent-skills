@@ -113,7 +113,8 @@ Behaviour follows PureConfig's derivation (the module runs pureconfig-derivation
 - every failure is collected (`ConfigDecodingError.Multiple`; `ConfigDecodingError.flatten(e)` lists them);
 - missing key: `KeyNotFound(path, key, candidates)` at the object that lacks it; `Option` fields (and readers mixing
   in `ReadsMissingKeys`) read it as missing instead;
-- other variants: `WrongType`, `CannotConvert`, `UnknownKey` (strict), `UnexpectedValueForFieldCoproductHint`,
+- other variants: `WrongType`, `CannotConvert`, `UnknownKey` (strict), `WrongSizeList(path, expected, found)` (after
+  0.4.0: a new case, so exhaustive matches on `ConfigDecodingError` need it), `UnexpectedValueForFieldCoproductHint`,
   `NoValidCoproductOptionFound` (FirstSuccess); writers throw `CoproductHintException(CollidingKeys)`;
 - `ConfigDecodingError` extends `Throwable`: `getMessage` gives `Key not found: 'host'. (at db)`;
 - case-object families: `{ type = info }` with a discriminator, plain strings with `withWrappedSubtypes`; an unknown
@@ -122,6 +123,17 @@ Behaviour follows PureConfig's derivation (the module runs pureconfig-derivation
 - field instances are resolved once per derived reader/writer (an `implicit def` is called once per instance, as in
   PureConfig), and subtype names from `transformConstructorNames` are computed once per instance, also with a runtime
   config (after 0.4.0).
+
+After 0.4.0 (PureConfig's behaviour, as in `kindlings-pureconfig`):
+
+- **Tuples are HOCON lists** (`[true, 5]`, `WrongSizeList` for another size); `{ _1, _2 }` objects are still read for
+  `TupleN`, but output changed from objects to lists. Scala 3: every tuple type (more than 22 elements, `*:`,
+  `EmptyTuple` as `[]`), read only from lists.
+- New `WritesMissingKeys[A]` (`toOpt(value): Option[ConfigValue]`) next to `ReadsMissingKeys`; the built-in `Option`
+  instances implement both. A custom **plain** `Option` reader/writer is used as is (empty value written, key required).
+- Case objects / parameterless case classes are read only from objects and honour `allowUnknownKeys = false` (also as
+  sealed subtypes under `withStrictDecoding`).
+- `private val` constructor fields are written (0.4.0 left them out).
 
 ## sconfig vs pureconfig module
 

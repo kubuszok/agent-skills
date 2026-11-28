@@ -138,6 +138,20 @@ sealed subtype (wins over transforms and hints); `@transientField` skips a field
   reader/writer, as upstream (after 0.4.0; 0.4.0 resolved them on every read/write) - a user `implicit def` returning
   a new instance per call is evaluated once per derived instance.
 
+After 0.4.0 (as upstream):
+
+- **Tuples are HOCON lists** (`(true, 5)` is `[true, 5]`; `WrongSizeList` for another size, element failures at their
+  index). The `{ _1 = .., _2 = .. }` object form is still read for `TupleN` types, so data written by 0.4.0 stays
+  readable, but output changed. Scala 3: every tuple type works (more than 22 elements, `H *: T`, `EmptyTuple` as
+  `[]`), read only from lists.
+- An instance in scope for a field type is used as upstream uses it: a `ReadsMissingKeys` reader gets missing keys, a
+  `WritesMissingKeys` writer decides whether the key is written. A custom **plain** `ConfigWriter[Option[A]]` writes
+  empty values and a plain `ConfigReader[Option[A]]` requires the key.
+- Case objects / parameterless case classes are read only from objects and honour `allowUnknownKeys = false` (also as
+  sealed subtypes under `withStrictDecoding`: extra keys next to the discriminator are `UnknownKey`s).
+- Default values are evaluated only when the key is missing.
+- `private val` constructor fields are written (0.4.0 left them out).
+
 ## Differences from PureConfig
 
 Checked against `pureconfig.generic.semiauto` (Shapeless on 2.13, `pureconfig-generic-scala3` on 3) with equivalent
@@ -187,6 +201,10 @@ opt-in or additive:
 - **Coproduct hint not found** - declare it with the concrete type (`KindlingsCoproductHint.Wrapped[Level]`), not the
   sealed parent `KindlingsCoproductHint[Level]`.
 - **`@transientField` compile error** - the field needs a default value.
+- **`Expected type OBJECT. Found LIST` / a tuple written as a list after upgrading** - tuples are lists after 0.4.0
+  (see Semantics); consumers of written configs must read lists. Old object-form input is still read.
+- **New `UnknownKey` next to a case-object subtype's discriminator under `withStrictDecoding`** (after 0.4.0) - remove
+  the extra keys or allow unknown keys for that type with a `KindlingsProductHint`.
 - **Scala.js / Scala Native link errors** - this module is JVM-only; switch to `kindlings-sconfig`.
 - **`class CollectionBuildException in object PureConfigDerivationUtils cannot be accessed` on 0.2.x** - bug #132,
   fixed in 0.3.0; upgrade (older third-party guides pin 0.2.0).
