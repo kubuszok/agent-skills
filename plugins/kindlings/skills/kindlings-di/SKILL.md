@@ -75,16 +75,21 @@ class UserModule {
 
 `wire[A]` builds `A` from:
 
-1. `A`'s **public primary constructor**, otherwise a **single matching companion `apply`**;
-2. each parameter resolved by type (subtype-aware) from the scope; **implicit parameters** go through normal implicit
-   search instead.
+1. `A`'s **public primary constructor** - or, after 0.4.0, the public constructor annotated `@javax.inject.Inject` /
+   `@jakarta.inject.Inject` (also a secondary one; two annotated constructors are an error) - otherwise a **single
+   matching companion `apply`**;
+2. each parameter resolved by type (subtype-aware) from the scope; **implicit parameters** (an `implicit`/`using`
+   clause) go through normal implicit search instead (a parameter merely flagged `implicit` in an ordinary clause,
+   `class S(val a: A, implicit val b: B)`, is wired from scope after 0.4.0).
 
 Candidates, nearest scope first (nearest wins; two candidates in the *same* scope are an ambiguity error):
 
 - parameters of the **closest enclosing method** (all clauses, `implicit`/`using` included; by-name ones evaluated
   where needed), plus, **on Scala 2 only**, `val`s local to that method declared before the call;
 - members (declared and inherited, public or protected, `val`/`lazy val`/parameterless `def`) of the immediately
-  enclosing class and of enclosing **objects**;
+  enclosing class and of enclosing **objects**; within one class/object (after 0.4.0, as macwire) members declared in
+  it (overrides included) rank before inherited ones (parents, self-types) together with members of a `@Module` held
+  by a declared member, then members of a `@Module` held by an inherited member;
 - public parameterless members of any in-scope value whose type is annotated `@Module`.
 
 | Call | What it does |
@@ -132,6 +137,8 @@ val finder2 = DI.autowire[UserFinder](
 val fromModule = DI.autowire[UserFinder]( DI.autowireMembersOf(dataModule) ) // seed with a module's members
 ```
 
+- After 0.4.0: `autowire(classOf[Impl])` constructs `Impl` wherever one of its supertypes is needed (as macwire), and
+  bare `autowireMembersOf(module)` works with `import hearth.kindlings.di.*`.
 - `autowireMembersOf(module)` adds every public parameterless member (`val`, `lazy val`, no-arg `def`) by its declared
   type. Unused members are fine; only a module none of whose members is used fails with
   `unused dependencies: DI.autowireMembersOf(module)`. (0.4.0: every member had to be used, with a garbled message;
@@ -214,6 +221,10 @@ scalacOptions += "-Xmacro-settings:di.logWiring=tree"
   reflective half of `Wired` (`wireClassInstance` / `wireClassInstanceByName`); `Wired` keeps the lookup/registry API.
 - Only the **closest** enclosing method's parameters are candidates (macwire also looks at outer methods and enclosing
   lambdas). Method-local `val`s are seen on **Scala 2 only**.
+- Not candidates (macwire: candidates): members brought in by an `import`, non-`val` constructor parameters of the
+  enclosing class, pattern-bound values, local `val`s of a nested block, any Scala 3 local `val`.
+- `wireList` puts declared members before inherited ones. Error wording differs in places (`unused dependencies:
+  C()`, macwire: `C.apply()`). 0.4.0 ranked inherited members like declared ones (ambiguity); fixed after 0.4.0.
 - Only the immediately enclosing class exposes `this`; members of an **outer enclosing class** are not reachable
   (enclosing objects always are).
 - di-cats: generic over `F` (macwire `autocats` is `IO`-only); companion `resource[F]` factories; a passed instance
@@ -228,7 +239,9 @@ scalacOptions += "-Xmacro-settings:di.logWiring=tree"
 - **`Cannot find a value of type` inside a nested class.** Members of an outer enclosing class are not reachable, and a
   local/anonymous class body ends the search (the defining method's parameters are not seen). Move the wiring into the
   class that owns the dependencies, put them in an `object`, or pass a `@Module` value.
-- **`Found multiple values of type [X]: [a, b]`.** Two candidates in the same scope. Tag them (`X @@ Tag`), move one to
+- **`Found multiple values of type [X]: [a, b]`.** Two candidates of the same rank in the same scope (after 0.4.0 an
+  inherited member and a member of a declared `@Module` value are such a pair, as in macwire - declare a member in the
+  class to pick one). Tag them (`X @@ Tag`), move one to
   another scope, or wire explicitly with `autowire`/`DI.plan.provide`.
 - **`wire` does not build missing intermediates.** That is by design (macwire semantics). Use `wireRec`, `autowire` or
   `DI.plan`.
@@ -241,6 +254,8 @@ scalacOptions += "-Xmacro-settings:di.logWiring=tree"
   sees it; pass a context-function *literal* instead.
 - **`DI.plan` member declared with `asDefs`/`storeAsDef`** is rebuilt on every use - do not use it for things that must
   be singletons (connection pools).
+- **Scala 2: `recursive value c needs type`** - annotate members holding a `wire` (`val c: C = wire[C]`); Kindlings
+  reads the enclosing scope, which forces their types.
 - Give members that hold a `wire` call an explicit type (`lazy val userFinder: UserFinder = DI.wire[UserFinder]`), as
   all documented examples do, so their type does not depend on the macro expansion.
 
