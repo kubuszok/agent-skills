@@ -85,6 +85,14 @@ no `derives` form.
 - `F[_]` in argument position (`def transform(in: F[Int]): F[String]`) via `InvariantK`; algebras with no `F` members
   via `ContravariantK` / `InvariantK`.
 - Nested algebras (`inner: InnerAlg[F]`): the inner instance is derived recursively if none is in scope.
+- After 0.4.0: sealed trait and Scala 3 enum algebras, recursive ones included, for `FunctorK`, `ContravariantK` and
+  `InvariantK` (cats-tagless-data's `derives`, also on Scala 2.13); case-class fields and trait members nesting `F` in
+  multi-argument types (`Kleisli[F, A, B]`, `EitherT`, `OptionT`, `Tuple2K`, `EitherK`, `FunctionK`, `Cokleisli`)
+  through the `*K` instance of `[F[_]] =>> T[F]`; algebras with extra type parameters via a Scala 3 type lambda;
+  faster generated `mapK` for members nesting `F`.
+- Not supported (Hearth gaps): refined algebras with type members (`Alg[F] { type T = ... }`), dependent method types,
+  Scala 2 aliases of algebras with extra type parameters, and on Scala 3 a by-name parameter of a method type parameter
+  in `SemigroupalK` / `ApplyK`.
 
 ## Differences from cats-tagless
 
@@ -94,6 +102,7 @@ no `derives` form.
 | `@autoFunctorK`, `@autoInvariantK`, `@finalAlg`, `@autoInstrument` (Scala 2, `-Ymacro-annotations`) | not supported - write the instance in the companion with `.derived` |
 | Scala 3 `derives FunctorK` / `cats-tagless-data` for case classes | `.derived` works for case-class algebras on both Scala versions |
 | `aop.Aspect`, `Derive.const` / `void` / `readerT`, `Derive.semigroupK` / `monoidK` | not ported (`Instrument` is the only AOP type class) |
+| `Derive.functor` / `contravariant` / `invariant` / `semigroupal` / `apply` / `flatMap` / `bifunctor` / `profunctor` (kind `* -> *` algebras) | not ported |
 
 Same behaviour otherwise (oracle-tested against `Derive.*` for every method shape above, including when the natural
 transformation runs and how often by-name arguments are evaluated).
@@ -110,6 +119,8 @@ transformation runs and how often by-name arguments are evaluated).
 
 - **`Cannot derive FunctorK for trait: method 'transform' has F[_] in parameter position`**: `F` appears as an
   argument type. Use `InvariantK` (or `ContravariantK` if `F` appears only in arguments).
+- **`depends on the type constructor parameter but is not a direct application of it`** for a case-class algebra field
+  such as `Kleisli[F, A, B]` - 0.4.0 only, fixed after 0.4.0.
 - **`mapK` on an algebra whose plain members you expected to change**: only `F`-typed members are transformed.
 
 ## Debugging, timeouts, policy
