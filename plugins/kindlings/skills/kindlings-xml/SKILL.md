@@ -96,8 +96,8 @@ implicit val xmlConfig: XmlConfig = XmlConfig.default
 | `defaultFieldMode` (`withAttributesByDefault`, `withElementsByDefault`, `withDefaultFieldMode(XmlFieldMode.X)`) | `XmlFieldMode.Element` | single-value fields as child elements or as attributes (see Attribute mode) |
 | `fieldNameMapper` (`withSnakeCaseFieldNames`, `withKebabCaseFieldNames`, `withPascalCaseFieldNames`, `withScreamingSnakeCaseFieldNames`, `withFieldNameMapper(f)`) | identity | element/attribute names |
 | `constructorNameMapper` (`withSnakeCaseConstructorNames`, `withKebabCaseConstructorNames`, `withConstructorNameMapper(f)`) | identity | subtype names in the discriminator |
-| `discriminatorAttribute` (`withDiscriminator(attr)`, `withNoDiscriminator`) | `Some("type")` | `<shape type="Circle">...`; `None` = subtype-named wrapper: `<Circle><shape>...</shape></Circle>` |
-| `enumAsStrings` (`withEnumAsStrings`) | `false` | meant for case-object enums as text; **has no effect** (open bug: enums always use the discriminator) |
+| `discriminatorAttribute` (`withDiscriminator(attr)`, `withNoDiscriminator`) | `Some("type")` | `<shape type="Circle">...`; `None` = subtype element inside: `<shape><Circle>...</Circle></shape>` (0.4.0 wrote `<Circle><shape>..</shape></Circle>`, which did not decode) |
+| `enumAsStrings` (`withEnumAsStrings`) | `false` | enums of singletons as the case name (see Sealed traits and enums); no effect in 0.4.0 |
 | `useDefaults` (`withUseDefaults`) | `false` | constructor defaults for missing fields (child elements and, after 0.4.0, attributes) when decoding |
 | `transientNone` (`withTransientNone`) | `false` | omit `None` fields when encoding |
 | `transientEmpty` (`withTransientEmpty`) | `false` | omit empty collections when encoding (empty strings are still written) |
@@ -106,13 +106,21 @@ implicit val xmlConfig: XmlConfig = XmlConfig.default
 
 | Annotation | Effect |
 |---|---|
-| `@xmlAttribute` | field as an attribute, whatever the mode (meant for text values; any other type is written as its `toString`, which does not decode) |
+| `@xmlAttribute` | field as an attribute, whatever the mode; single text values only (below) |
 | `@xmlElement` | field as a child element, whatever the mode (overrides `withAttributesByDefault`) |
-| `@xmlContent` | field as the element's text content: `<a href="...">Scala</a>` |
-| `@xmlName("n")` | element/attribute name of a field or subtype |
-| `@xmlWrapper("n")` | meant to wrap a collection field in an extra element; **ignored** (open bug: written and read like a plain field) |
-| `@xmlUnwrapped` | collection items inlined directly, no wrapper element |
+| `@xmlContent` | field as the element's text content: `<a href="...">Scala</a>`; every other field is then an attribute |
+| `@xmlName("n")` | element/attribute name of a field, or a subtype's name; used as is (not transformed by the mappers) |
+| `@xmlDiscriminator("kind")` | on a sealed trait / Scala 3 enum: its discriminator attribute, overriding `withDiscriminator` and `withNoDiscriminator` (after 0.4.0) |
+| `@xmlWrapper("n")` | field inside an outer element `n`; a collection there as one element per item, named after the field (after 0.4.0; ignored in 0.4.0) |
+| `@xmlUnwrapped` | collection / `Map[String, V]` as one element per item named after the field, no collection element (after 0.4.0) |
 | `@transientField` | skipped both ways; field must have a default |
+
+`@xmlAttribute` / `@xmlContent` accept (after 0.4.0; 0.4.0 wrote `toString`) single text values: `String`, numbers,
+`Boolean`, `Char`, `BigDecimal`, `BigInt`, value types over them, enums of singletons with `withEnumAsStrings` (the
+case name), a type with a user `XmlEncoder`/`XmlDecoder` (the text of its element), and `Option`s of these. Anything
+else is a compile-time error, as are a non-attribute field next to `@xmlContent` and conflicting annotations on one
+field (only `@xmlElement` + `@xmlWrapper` combine). Attribute values of built-in types are decoded directly (a user
+`XmlDecoder[Int]` is not consulted for attributes).
 
 ```scala
 case class Link(@xmlAttribute href: String, @xmlContent text: String)
@@ -124,9 +132,9 @@ KindlingsXmlEncoder.encode(Link("https://scala-lang.org", "Scala"), "a")
 
 After 0.4.0 it is decoded too (0.4.0: encode-only, its output failed with `MissingElement`), with a compile-time or a
 runtime config. Only single text values become attributes: `String`, primitives, `BigDecimal`, `BigInt`, value types
-over them (written unwrapped: `id="5"`, not `id="UserId(5)"`) and `Option`s of these (the value for `Some`, omitted for
-`None`). Collections, maps, case classes, sealed traits and enums (and `Option`s of them) stay child elements in both
-modes; nested case classes put their own text fields as attributes of their element.
+over them (written unwrapped: `id="5"`, not `id="UserId(5)"`), enums of singletons with `withEnumAsStrings`, and
+`Option`s of these (the value for `Some`, omitted for `None`). Collections, maps, case classes, sealed traits, enums
+without `withEnumAsStrings`, types with a user instance, and `@xmlWrapper`/`@xmlUnwrapped` fields stay child elements; nested case classes put their own text fields as attributes of their element.
 
 ```scala
 implicit val c: XmlConfig = XmlConfig.default.withAttributesByDefault
@@ -148,7 +156,31 @@ as that default (as with `withTransientNone`).
   reformatting) collapses/wraps text: don't use it on documents with whitespace-sensitive `String`s.
 - XML parsers turn tabs and newlines in attribute values into spaces: keep multi-line `String`s in elements.
 
-Collections are written as a field element with `<item>` children by default (`<tags><item>a</item></tags>`).
+## Collections, sealed traits and enums
+
+| Field | XML |
+|---|---|
+| `tags: List[String]` | `<tags><item>a</item><item>b</item></tags>` |
+| `@xmlWrapper("tags") tag: List[String]` | `<tags><tag>a</tag><tag>b</tag></tags>` |
+| `@xmlUnwrapped tag: List[String]` | `<tag>a</tag><tag>b</tag>` |
+| `props: Map[String, Int]` | `<props><entry key="a"><value>1</value></entry></props>` |
+
+Item elements are named after the field (`@xmlName` or mapped name). An empty wrapped collection is `<tags/>`; an
+absent wrapper decodes as empty / `None` / the default with `withUseDefaults`. `@xmlWrapper` on a non-collection
+puts the field's element inside it. Two fields with one wrapper name are a compile-time error.
+
+| Value | default | `withNoDiscriminator` | `withEnumAsStrings` |
+|---|---|---|---|
+| `Circle(5.0): Shape` | `<shape type="Circle"><radius>5.0</radius></shape>` | `<shape><Circle><radius>5.0</radius></Circle></shape>` | compile error (below) |
+| `Red: Color` (case objects, Scala 3 / Java enum, `Enumeration`) | `<color type="Red"/>` | `<color><Red/></color>` | `<color>Red</color>`, `color="Red"` as attribute |
+
+Nested sealed traits are flattened (the leaf's name is the discriminator). `@xmlDiscriminator` counts on the type the
+value is encoded as (a field typed as the parent uses the parent's); Java enums cannot carry it. With
+`withEnumAsStrings`, a sealed trait that has a case class fails: `enumAsStrings is enabled but Shape has cases that are
+not singletons (Circle, ...)` at compile time; with a runtime-only config the encoder throws
+`IllegalArgumentException` and the decoder returns `Left(General(...))`. Fix: derive that type's instance with a config
+without `enumAsStrings` and put it in implicit scope.
+
 Absent vs empty (after 0.4.0; `withTransientNone` / `withTransientEmpty` output round-trips with any decoder config):
 
 - absent `Option` element or attribute -> `None` (the default instead with `withUseDefaults` and a default value);
@@ -183,8 +215,15 @@ Unknown extra child elements are ignored; the root element's own name is not che
   written as an attribute); with a runtime config an `Option` attribute was written as `Some(x)`; `String` values were
   trimmed (code relying on that must now trim itself); the runtime-config encoder of a wide case class ran the compiler
   out of memory.
-- **Open bugs**: `withEnumAsStrings` has no effect; `@xmlWrapper` is ignored; `@xmlAttribute` on a non-text field
-  (collection, case class, ...) writes its `toString` - leave such fields as elements.
+- **0.4.0 only (fixed after 0.4.0, breaking)**: `withEnumAsStrings` had no effect; `@xmlWrapper` / `@xmlUnwrapped`
+  were ignored (remove them to keep the `<field><item>..` format); `@xmlAttribute` on a non-text field wrote its
+  `toString`; `withNoDiscriminator` and nested sealed traits wrote output that did not decode; fields next to
+  `@xmlContent` were dropped; `private val` constructor fields were not written.
+- **New compile errors after 0.4.0** (each names the field): `@xmlAttribute needs a single text value, X is not one` -
+  remove the annotation (child element) or provide an `XmlEncoder`/`XmlDecoder`; `next to @xmlContent the other fields
+  have to be attributes`; `@xmlUnwrapped needs a collection or a map`; `enumAsStrings is enabled but X has cases that
+  are not singletons`; `@xmlAttribute on the enum X writes the case name, which needs withEnumAsStrings`; `... cannot
+  be combined` (conflicting annotations); `X has more than one field with @xmlWrapper("n")`; `@xmlContent needs a single text value`.
 - **Sealed trait decoding fails with `Missing discriminator attribute 'type' in element <s>`**: XML produced elsewhere
   has no `type` attribute. Set its name with `withDiscriminator("...")`, or use `withNoDiscriminator` (subtype-named
   wrapper element) - the same config on both sides.
