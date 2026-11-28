@@ -107,10 +107,53 @@ implicit val yamlConfig: YamlConfig = YamlConfig.default   // Scala 3: given Yam
 | `withEnumAsStrings` | sealed families of case objects / Scala 3 enums as plain names | off |
 | `withUseDefaults` / `withoutUseDefaults` | absent field with a constructor default uses it / fails | **use defaults** (as scala-yaml) |
 | `withEmptyCollectionsAsFlow` / `withoutEmptyCollectionsAsFlow` | `toYamlString` prints empty `[]` / `{}` (also nested) | off (empty value, as scala-yaml) |
+| `withAccumulatingErrors` / `withFailFastErrors` (after 0.4.0; getter `accumulatingErrors`) | report every decoding failure / stop at the first | fail fast (as scala-yaml) |
 | `YamlConfig.kindlings03Defaults` | `withoutUseDefaults.withWrappedSubtypes` - Kindlings 0.3.x behaviour | |
 
 There is no `withPascalCaseConstructorNames` in this module. Absent `Option` fields decode as `None`. Union types are
 always wrapped; Java enums and `scala.Enumeration` values are written as their names.
+
+## Decoding failures (after 0.4.0)
+
+- **Fail fast** (default): decoding stops at the first failure in field order and returns that `ConstructError`
+  unchanged; later fields, collection items and map entries are not decoded (defaults of absent fields not evaluated).
+  scala-yaml decodes everything and reports the first failure - same error, different side effects.
+- **Accumulating** (`withAccumulatingErrors`): everything is decoded recursively (nested case classes, items, map keys
+  and values, `Option`s, the selected subtype) and **one** `ConstructError` is returned; its message starts with
+  `Decoding failed with N error(s):` and lists ` - <path>: <message> (at line:col)`. Paths: `.field`, `.mapKey`,
+  `[index]` (e.g. `.address.zip`, `.tags[1]`). `YamlDecodingFailures.of(error): List[YamlDecodingFailure(path, error)]`
+  gives the individual failures (a non-accumulated error gives itself with path `""`).
+
+Gotchas: untagged sealed traits still report scala-yaml's `Cannot parse ...` when no subtype decodes; a failure that is
+not of a field (node not a mapping) is returned as is; `ConstructError#copy` drops the attached failures (they are the
+error's cause). On Scala 2 an `implicit val` config of the module being compiled is only known at runtime, so both
+modes are generated with a runtime check - pass the config explicitly to get one mode only.
+
+## Map keys (after 0.4.0)
+
+Maps derived by Kindlings read/write keys with key codecs `YamlKeyDecoder[K]` (`String => Either[ConstructError, K]`)
+and `YamlKeyEncoder[K]` (`K => String`), like circe's `KeyDecoder`/`KeyEncoder`. Lookup order:
+
+1. a user key codec in implicit scope (wins, also for `String`);
+2. built in: `String`, `Char`, `Boolean`, numbers, `BigInt`, `BigDecimal`, `UUID` (numbers read as scala-yaml does:
+   `0x10`, `1_000`);
+3. derived: enums of case objects (Scala 3 / Java enums, `Enumeration`, sealed traits of case objects) by case name
+   (after `transformConstructorNames`), and value types (`AnyVal`, opaque, refined / Iron / neotype) over a key type,
+   with constructor validation (a rejected key is a failure at the key);
+4. otherwise a complex key, read/written with `YamlDecoder[K]` / `YamlEncoder[K]` (as scala-yaml).
+
+None applies: `No YamlKeyDecoder[K] for the map's keys: ...` - provide a key codec (or a `YamlDecoder[K]` for a complex
+key). API: `YamlKeyDecoder.instance` / `map` / `emap` / `fromScalarDecoder`, `YamlKeyDecoder.forString` (and other
+built-ins), `YamlKeyEncoder.instance` / `contramap`.
+
+```scala
+implicit val keyDecoder: YamlKeyDecoder[UserId] =
+  YamlKeyDecoder.forString.emap(s => if (s.startsWith("u-")) Right(UserId(s)) else Left(s"Not a user id: $s"))
+```
+
+A `YamlDecoder[K]` / `YamlEncoder[K]` is **not** used for a key type that has a key codec: a custom
+`YamlDecoder[String]` does not change `String` keys (write a `YamlKeyDecoder[String]`), and a value-type key ignores a
+user `YamlDecoder[V]` without a `YamlKeyDecoder[V]`.
 
 ## Annotations (`hearth.kindlings.yamlderivation.annotations`)
 
@@ -132,6 +175,14 @@ case class User(
   subtypes are ambiguous - use `withDiscriminator` or `withWrappedSubtypes` for unambiguous ADTs.
 - A repeated key in a mapping decoded as a case class gives its **last** value, and a non-scalar key fails with
   `Parameter of a class must be a scalar value`, as scala-yaml (0.4.0: first value / key ignored).
+- After 0.4.0, as scala-yaml: collections, maps and `Option`s of derived types are derived in place (no element
+  instance needed) and fail with scala-yaml's messages (`Could't construct scala.collection.immutable.List from ...`);
+  `private val` constructor fields are written and read; default value expressions are evaluated only when the field is
+  absent, on each such decode; a `~` (null) or non-scalar key in a `Map[String, V]` is rejected (quote it: `"~"`);
+  `String` keys with non-printable characters are escaped. scala-yaml itself cannot derive value classes and its
+  recursive `derives YamlCodec` never finishes initializing; Kindlings handles both.
+- Fail fast stops at the first failing field/item/entry (scala-yaml decodes all and reports the first); `List`/`Seq`/
+  `Set` are decoded by Kindlings, not scala-yaml's `forList`/`forSeq`/`forSet`.
 - Derived encoders and decoders resolve field/subtype instances (e.g. an `implicit def` `YamlEncoder`) and, with a
   `YamlConfig` only known at runtime, the transformed field (`transformMemberNames`) and subtype names once per instance,
   not per call (after 0.4.0). Inline `KindlingsYamlEncoder.encode` / `KindlingsYamlDecoder.decode` compute them on every
