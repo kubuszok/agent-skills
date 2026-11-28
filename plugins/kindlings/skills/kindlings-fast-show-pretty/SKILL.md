@@ -99,6 +99,7 @@ indented) - useful when embedding output in an already indented log line. There 
 | map | `Map(\n  ("a", 1)\n)` |
 | tuple | `Tuple2(\n  _1 = 1,\n  _2 = "x"\n)` |
 | sealed-trait / enum value | `(Circle(\n    radius = 5.0d\n  )): Shape`, case object `(Red()): Color` |
+| Java enum constant | `(WRITE()): AccessMode`, like a case object (Scala 2.13 too after 0.4.0; 0.4.0 failed to compile there) |
 
 ## `@sensitiveData`
 
@@ -125,6 +126,8 @@ configurable indentation and the ADT type ascription; it does not need cats.
   drop it (Scala 3 enum cases are always typed as the enum).
 - **Output too long for logs**: it is always multi-line; there is no width-based folding.
 - **`render` without a config**: there is no default argument - pass `RenderConfig.Default`.
+- **`private val` constructor fields missing** (0.4.0) - rendered like other fields after 0.4.0, as a case class
+  `toString` shows them.
 
 ## Debugging, timeouts, policy
 

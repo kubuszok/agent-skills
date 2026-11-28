@@ -128,6 +128,8 @@ fields. Cats collections (`NonEmptyList`, ...) work with `kindlings-cats-integra
 - **ANSI escape codes in CI logs / assertion messages**: render with `RenderConfig.plain`. 0.4.0's `Diff.seqDiff`
   element names still contained ANSI codes under `RenderConfig.plain`, and nested entries of sequences/maps/sets were
   not indented under their `+`/`-` marker (both fixed after 0.4.0).
+- **Values differing only in a `private val` constructor field reported identical** (0.4.0) - such fields are compared
+  after 0.4.0 (as difflicious / diffx).
 - **`Diff.derived` inferred as `Nothing`/`Any`** (error "type parameter was inferred as ..."): pass the type explicitly.
 
 ## Debugging, timeouts, policy
