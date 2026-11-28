@@ -108,6 +108,8 @@ When rebuilding a case class with transformed fields, keep each field's own type
 - **`Applicative[Any]` kind mismatch on Scala 3** -> use `type AnyF[X] = Any`.
 - **`Type.Ctor1.of[F]: F is a type parameter of ..., so the type constructor it stands for is unknown here`** (Scala 2) -> the bundle method lacks `implicit ft: c.WeakTypeTag[F[Any]]`.
 - **Kind-projector / type lambdas** (`Either[String, *]`) cannot be passed as `F` to `Type.Ctor1.of` on Scala 2 -> build them with `Type.Ctor2.of[Either].setA[String]`.
+  The exception is a lambda or alias the user passes for the macro's own type parameter (`derived[Alg[*[_], String]]`),
+  which `Type.CtorK1.of[Alg]` and `Expr.quote` handle.
 
 ## Reference
 

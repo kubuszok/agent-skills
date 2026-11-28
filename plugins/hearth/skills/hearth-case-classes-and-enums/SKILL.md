@@ -109,10 +109,16 @@ Enum.parse[A].toEither match {
 }
 ```
 
-- Handles sealed traits/classes, Scala 3 `enum`s, Java enums, `scala.Enumeration` and (Scala 3) union types whose members are distinguishable at runtime (or have a user-provided `scala.reflect.TypeTest`, see below). `matchOn` is the fail-fast variant; `parMatchOn` aggregates errors from all children.
+- Handles sealed traits/classes, Scala 3 `enum`s, Java enums (all constants in declaration order, also for an enum
+  read from a class file - no need to touch its constants first), `scala.Enumeration` (its non-private `val`s; not
+  `var`s) and (Scala 3) union types whose members are distinguishable at runtime (or have a user-provided `scala.reflect.TypeTest`, see below). `matchOn` is the fail-fast variant; `parMatchOn` aggregates errors from all children.
 - `enumm.directChildren: ListMap[String, ??<:[A]]` (immediate subtypes; nested sealed traits appear as one child) is keyed by the subtype's **simple** name: same-named subtypes from different scopes collapse into one entry, and the key format changes to the full name in 0.5.0 - do not rely on it. `Type[A].directChildrenList` (`Option[List[(String, ??<:[A])]]`, since 0.4.1) keeps every child; `Type[A].directChildrenInOrder(ChildrenOrder.DeclarationWhenAvailable | ChildrenOrder.ByName)` gives a stable order. Derive discriminator names yourself (e.g. from the child type's name) instead of from the map keys. `enumm.exhaustiveChildren: Option[NonEmptyMap[String, ??<:[A]]]` (flattened leaves).
 - For decoders, build the child from its name: iterate the children, use `SingletonValue.unapply` for singletons and the case-class path for the rest, and emit a `match` on the discriminator string: one `MatchCase.eqValue(Expr(name))` per child plus a final `MatchCase.typeMatch[String]()` arm that reports the unknown discriminator (`MatchCase.matchOn` adds no default arm, so without it an unknown value is a runtime `MatchError`).
 - Unions whose members a class test cannot distinguish (`List[Int] | List[String]`) are accepted only with a user-provided `scala.reflect.TypeTest` per member; `Type[A].unionRefusalReason` tells the user which ones (use it in the error). On Scala 2 `isUnionType` is always `false`.
+
+Tuples are never an `Enum` (on Scala 3.8+ `*:` is sealed, but its subclasses are not cases to dispatch on), and
+`CaseClass.parse` of a `*:` chain or a tuple of more than 22 elements is a `Left` - only `TupleN` classes are case
+classes.
 
 ## Named tuples (Scala 3.7+)
 

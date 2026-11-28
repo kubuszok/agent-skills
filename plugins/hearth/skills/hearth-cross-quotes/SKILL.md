@@ -107,7 +107,12 @@ Do not write `implicit val evA: Type[A] = Type.of[A]` for such an abstract `A` -
 - **`Install cross-quotes-plugin to use this method`** (compile error in the Scala 3 macro module, from `@compileTimeOnly`) -> plugin missing on Scala 3.
 - **Scala 3 plugin rewrites syntactically**: it assumes `Type`, `Expr`, `Expr.quote` are the `MacroCommons` ones. Mixing `scala.quoted.Type.of`/`'{}` with Cross Quotes in one file, or your own `quote`/`splice` methods, is undefined behaviour (often a compiler crash).
 - **Type aliases / kind-projector in `Type.CtorN.of`** are not supported on Scala 2 -> use the full constructor and `setA`/`setB`/... (applied from the back).
-- **`Type.CtorN.UpperBounded.of`/`Bounded.of` `.unapply` ignores the bounds** (open issue kubuszok/hearth#400) -> check `<:<` on the extracted types yourself.
+  Exception: a macro's own higher-kinded type parameter (`def derived[Alg[_[_]]]`) may stand for an alias or a
+  kind-projector lambda fixing some arguments (`type L[F[_]] = Alg[F, String]`, `Lambda[F[_] => Alg[F, String]]`):
+  `Type.CtorK1.of[Alg]` and `Alg` as a type argument inside `Expr.quote` keep the fixed arguments.
+- **`Type.CtorN.UpperBounded.of`/`Bounded.of` `.unapply`** matches only types whose arguments are within the bounds.
+  Exceptions: on Scala 2 a bound which is an abstract type parameter with no `Type` of it in scope is not checked,
+  and on Scala 3 a constructor from `fromUntyped` does not check the bounds - check `<:<` yourself there.
 - Hearth before 0.4.1 broke `val List = Type.Ctor1.of[List]` (value named like the type) on Scala 2 - prefer distinct names (`ListCtor`) anyway.
 
 ## Debugging the rewrite

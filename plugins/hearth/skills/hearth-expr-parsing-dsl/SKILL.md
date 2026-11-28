@@ -103,6 +103,11 @@ AnonymousInstance.parse[A].toEither match {        // parseWithMixins[A](mixins:
 
 `enclosingScope: NonEmptyVector[Enclosure]` (member of `MacroCommons`, innermost first): `Enclosure.Method` (`localValues` - **Scala 2 only**, closest method), `Enclosure.Value`, `Enclosure.Class` (`members: List[Method]`, `thisRef: Option[Expr_??]` - only for the closest class), `Enclosure.Object` (`thisRef: Expr_??`), `Enclosure.Package` (differs between versions). `Environment.enclosingMethodParameters: List[List[Enclosure.Parameter]]` (`name`, `tpe`, `ref`, `isImplicit`, `isByName`) works the same on both. Call a member: find it in `members`, apply it to `thisRef` with the `Method` chain.
 
+On Scala 2 the macro call may sit in a `val`/`lazy val`/`def` without a type ascription (`lazy val x = wire[X]`): that
+definition is being typed during the expansion, so its `Enclosure.Value.tpe` is `Any` and it is left out of the
+enclosing class's `members`. In a self-typed trait (`this: Provider =>`) `members` include the self-type's members
+with `isDeclared = false` and the trait's own with `isDeclared = true`, on both versions.
+
 ## Gotchas
 
 - **`class type required but M found` / `M is not a class type`** from `classOf[M]` for an abstract macro type param -> summon `ClassTag[M]` during expansion and use `Expr.quote(Expr.splice(ct).runtimeClass)`.

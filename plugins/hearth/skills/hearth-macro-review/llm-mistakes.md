@@ -89,8 +89,10 @@ pass happy-path tests. Each entry gives the symptom, the cause, and what the cor
 
 22. **`runToExprOrFail` called more than once, or nested.**
     - Run the `MIO` program once, at the entry point.
-    - A nested call, for example through a helper that is itself a macro entry, re-enters the timeout machinery and
-      fails with `HearthAssertionError: ... MIO timeout is already set`.
+    - A nested call in the same expansion, for example through a helper that is itself a macro entry called
+      directly, re-enters the timeout machinery and fails with `HearthAssertionError: ... MIO timeout is already set`.
+    - A run of another expansion that the compiler starts meanwhile (a summoned implicit provided by a Hearth macro)
+      is not a nested call and works.
 23. **The `LogDerivation`-style marker implicit defined in a companion object.** It is then always in implicit
     scope, and logging is on everywhere. Define it in a separate `debug` object that users import.
 24. **Settings keys without a namespace.** `-Xmacro-settings` are visible to every macro on the classpath. Prefix
