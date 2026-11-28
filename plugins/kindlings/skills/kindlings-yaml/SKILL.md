@@ -120,7 +120,7 @@ always wrapped; Java enums and `scala.Enumeration` values are written as their n
   scala-yaml decodes everything and reports the first failure - same error, different side effects.
 - **Accumulating** (`withAccumulatingErrors`): everything is decoded recursively (nested case classes, items, map keys
   and values, `Option`s, the selected subtype) and **one** `ConstructError` is returned; its message starts with
-  `Decoding failed with N error(s):` and lists ` - <path>: <message> (at line:col)`. Paths: `.field`, `.mapKey`,
+  `Decoding failed with N errors:` (`1 error`) and lists ` - <path>: <message> (at line:col)`. Paths: `.field`, `.mapKey`,
   `[index]` (e.g. `.address.zip`, `.tags[1]`). `YamlDecodingFailures.of(error): List[YamlDecodingFailure(path, error)]`
   gives the individual failures (a non-accumulated error gives itself with path `""`).
 
