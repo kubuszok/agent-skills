@@ -138,6 +138,12 @@ value classes / reference types without default -> error; Scala 3 `T | Null` -> 
 Collection field with a non-empty default: `[]` decodes as **the default** (upstream behaviour). Since Kindlings writes
 `C(Nil)` as `{"xs":[]}`, such values do not round-trip unless you add `withEmptyCollectionsAsEmpty`.
 
+With a compile-time config, a default that does not depend on other parameters is evaluated on **every decode**, also
+when the field is present (as jsoniter-scala does); keep default expressions side-effect free. With a runtime config it
+is evaluated only for an absent field.
+
+Performance: reads are on par with `JsonCodecMaker` (same allocations), in both wrapper and discriminator ADT modes.
+
 Map keys: `String`, primitives and boxes, `BigInt`/`BigDecimal`, `UUID`, `java.time`, value classes/opaque types over
 those, case-object enums, and types with an implicit `JsonKeyCodec` (user-provided ones win). Other keys need
 `withMapAsArray` (compile error otherwise, with a compile-time config).

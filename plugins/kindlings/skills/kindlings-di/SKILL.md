@@ -179,6 +179,8 @@ factory. Acquisition follows argument order (topologically sorted when factories
 runs in reverse. Missing intermediate types are constructed and shared; a companion
 `def resource[F[_]: Sync]: Resource[F, T]` (or constraint-free `def resource[F[_]]`) is discovered and used
 automatically - a Kindlings extension with no macwire equivalent.
+Difference from macwire `autocats`: `DICats.wireResource[F, B](b)` with an instance of the target type itself returns
+`Resource.pure(b)` (that instance); `autocats` constructs a new `B`.
 
 ```scala
 import cats.effect.{Resource, Sync, SyncIO}
