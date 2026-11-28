@@ -78,7 +78,7 @@ given Encoder.AsObject[Person] = KindlingsEncoder.deriveAsObject[Person]
 | `KindlingsDecoder.incomplete[(P1, ..) => C]` | `Decoder[(P1, ..) => C]` | `Labelled["field", T]` selects a field by name |
 | `KindlingsEncoder.encode[A](a)` / `KindlingsDecoder.decode[A](json)` | `Json` / `Either[DecodingFailure, A]` | inline, no instance kept |
 | `KindlingsCodecAsObject.deriveEnum[A]()` / `deriveEnum[A](transformConstructorNames)` (also on Encoder/Decoder) | `Codec[A]` | **Scala 3 only**; sum of singletons as strings |
-| `KindlingsCodecAsObject.derive[A](transformMemberNames = .., discriminator = .., ...)` (also on Encoder/Decoder) | as `derived` | **Scala 3 only**; config as named args, like `ConfiguredCodec.derive` |
+| `KindlingsCodecAsObject.derive[A](transformMemberNames = .., discriminator = .., ...)` (also on Encoder/Decoder) | as `derived` | **Scala 3 only**; config as named args, like `ConfiguredCodec.derive` (`enumAsStrings` on `KindlingsCodecAsObject.derive` only after 0.4.0) |
 | `@JsonCodec`, `@JsonCodec(encodeOnly = true)`, `@ConfiguredJsonCodec` | companion instances | **Scala 2 only**, needs `scalacOptions += "-Ymacro-annotations"` |
 
 All of them take an implicit/`using` `hearth.kindlings.circederivation.Configuration` (default `Configuration.default`
@@ -88,6 +88,13 @@ from its companion). Pass one explicitly with `KindlingsEncoder.derived[A](cfg)`
 `derived` is an implicit def / `given`, so nested types are derived inside one macro expansion and user-provided
 instances (in scope or in companions) always win over built-in rules. A `derives` clause or an `implicit val` in the
 companion is still the way to make an instance visible to circe APIs that ask for `Encoder[A]`/`Decoder[A]`.
+
+A derived instance resolves its field instances once per instance (after 0.4.0 also for encoders: a user
+`implicit def` field `Encoder`/`KeyEncoder` is evaluated once, not per encode); with a runtime-only `Configuration` the
+transformed field/subtype names are computed once per instance, by encoders and (after 0.4.0) decoders too (a decoder
+of a map with enum keys looks keys up in a table built once per instance). Inline `KindlingsEncoder.encode` /
+`KindlingsDecoder.decode` have no instance and still compute them on every call: for a hot path with a runtime config
+prefer a derived instance (`KindlingsDecoder.derived` / `KindlingsCodecAsObject.derived`).
 
 ## Configuration
 
@@ -213,6 +220,18 @@ Scala 3 rules. Add golden (round-trip + fixed JSON) tests for every type on the 
 - **`@JsonCodec` "enable macro annotations (-Ymacro-annotations)"** - add the flag on Scala 2.13; on Scala 3 use
   `derives`.
 - **Case class with several parameter lists** - rejected at compile time (as circe does).
+- **User generic instance ignored, field derived structurally** (0.4.0) - `implicit def enc[A](implicit a: Encoder[A]):
+  Encoder[Page[A]]` was skipped when `Encoder[Item]` itself had to be derived (different JSON, no error). After 0.4.0
+  Kindlings derives the missing instances of the field type's **type arguments** (also for recursive types) and uses
+  your instance. Still not completed: instances needing another type class (`Encoder.AsObject[A]`, `Show[A]`), types
+  that are not type arguments of the field type (`Encoder[List[A]]`), collections/options/value types/tuples as the
+  field type. Workaround (and on 0.4.0): put the nested instance in scope first,
+  `implicit val item: Encoder[Item] = KindlingsEncoder.derived[Item]`.
+- **`The implicit search for X failed because the macro expansion of a candidate crashed (...)`** (after 0.4.0) - an
+  implicit macro (yours or a library's) threw while Kindlings searched for `X`; the message contains the exception.
+  Kindlings stops instead of silently deriving `X` structurally. Fix the crashing macro or provide `X` as a value.
+- **`private val` constructor fields** are encoded and decoded like other fields (as circe-generic); 0.4.0 left them
+  out of the JSON.
 - **Generic types on Scala 3**: `case class Box[A](a: A) derives KindlingsEncoder` asks for `KindlingsEncoder[A]` for
   each type argument; built-in types are handled (fixed bug #206 encoded `String` as an array of chars in older
   versions). To reuse plain circe instances for `A`, write

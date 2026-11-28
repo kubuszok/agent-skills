@@ -70,7 +70,7 @@ object Person:
 | Method | Result |
 |---|---|
 | `KindlingsSchema.derived[A]` | `KindlingsSchema[A]` (implicit def / `given`); `.schema: Schema[A]` |
-| `KindlingsSchema.derivedEnumeration[A]` | `KindlingsSchema[A]`: a string-enumeration schema for a sealed trait / enum whose cases are all singletons (not implicit) |
+| `KindlingsSchema.derivedEnumeration[A]` | `KindlingsSchema[A]`: a string-enumeration schema for a sealed trait / enum whose cases are all singletons (not implicit); equals tapir's `Schema.derivedEnumeration[A].defaultStringBased` (plain case names, not `transformConstructorNames`) |
 
 Generic types can take the schemas of their parameters as evidence (the name then includes the actual argument, e.g.
 `Box[Int]`): Scala 3 `case class Box[A](value: A) derives KindlingsSchema`; Scala 2.13
@@ -80,6 +80,15 @@ in scope works as evidence too.
 Your own implicit `Schema` for any type (fields, `Option`, maps, ...) always wins. Tapir's annotations from
 `sttp.tapir.Schema.annotations._` are honoured: `@description`, `@title`, `@encodedName`, `@format`, `@validate`,
 `@validateEach`, `@default`, `@deprecated`, `@hidden`, `@encodedExample`, `@customise`.
+
+After 0.4.0 annotations behave as in tapir's derivation: subtypes inherit the sealed parent's annotations (except
+`@encodedName`), fields inherit those of the parent's same-named member (`@description` on `def name` of the trait)
+unless they have their own of that kind; `@encodedName` on a **type** names its schema (no type parameters, not
+inherited); several annotations / `@customise` apply in declaration order (0.4.0 on Scala 3: reversed);
+`scala.Enumeration` schemas are named after the object and carry its annotations (enumeration validators are named and
+list values in id order); Scala 3 union types are named `A_or_B`; a `Map`'s own schema
+(`KindlingsSchema.derived[Map[K, V]].schema`) is not optional (fields of map type still follow the decoder). Schemas
+built with `Schema.oneOfWrapped` / `oneOfUsingField` / `derivedEnumeration` in scope are used for fields.
 
 ## How the schema follows the JSON configuration
 
@@ -106,7 +115,9 @@ Your own implicit `Schema` for any type (fields, `Option`, maps, ...) always win
 ## Both circe and jsoniter on the classpath
 
 The macro then finds two configs and fails (`Multiple JSON library configurations found: circe, jsoniter-scala.`).
-Pick one, either globally:
+Typical cause: circe codecs plus `kindlings-tapir-openapi-jsoniter` (depends on `kindlings-jsoniter-derivation`).
+The error prints both fixes verbatim (0.4.0's hint printed a non-compiling `PreferSchemaConfig[circeConfig]`). Pick
+one, either globally:
 
 ```scala
 scalacOptions += "-Xmacro-settings:tapirSchemaDerivation.preferConfig=circe" // or jsoniter-scala
@@ -134,6 +145,11 @@ comparing rendered JSON Schemas on Scala 2.13 and 3. Differences:
 | Type aliases in names | alias name | dealiased (`Not[Empty]`) |
 | Value classes on Scala 3, non-`String` map keys, `Char`, named tuples, opaque types | hand-written / `Schema.schemaForMap` needed | derived |
 | Recursive types | `implicit lazy val` / `implicit def` workarounds | work |
+| Discriminator values, `Either`, union-type members | `@encodedName` | follow the JSON codec |
+| `@hidden` on fields | ignored | hides the field |
+| Sealed trait's annotations on its own schema | not applied | applied |
+| Subtype order on Scala 3 | by name | declaration order |
+| Parameterless Scala 3 enum case name | `pkg.Case` | `pkg.Enum.Case` |
 
 Not ported: `Schema.oneOfWrapped`, the `Schema.derivedEnumeration` builder API (`.defaultStringBased`, custom encode).
 `.modify(_.path)` is tapir core and works on the result as usual.
@@ -161,8 +177,13 @@ Not ported: `Schema.oneOfWrapped`, the `Schema.derivedEnumeration` builder API (
 - **Schema names / casing differ from the API** - the schema uses the config visible at the derivation site; derive
   schemas where the same `Configuration` / `JsoniterConfig` as the codecs is in scope.
 - **Validators missing for refined/Iron types** - import the library's tapir integration where the schema is derived.
+- **OpenAPI document changed after upgrading past 0.4.0** - inherited descriptions/formats from sealed parents and
+  their members appear, `@encodedName` on types renames components, `Enumeration` and union-type schemas are renamed,
+  Java enum values come in declaration order (Scala 3). Diff the rendered document before deploying.
 - **Collections required with circe** - correct: circe decoders reject a missing collection field. Give the field a
   default and use `withDefaults` if it should be optional.
+- **`Option` field optional but not nullable, while the codec writes `"field":null`** - both codecs write `null` for
+  `None` by default; jsoniter `withTransientNone`, circe a printer with `dropNullValues = true` (see `kindlings-http-api`).
 - **Scala 2: `HearthAssertionError: Hearth assertion failed: MIO timeout is already set`** - a `val` holding a derived
   instance has no explicit type (`val ks = KindlingsSchema.derived[A]`) and the same file derives a type with a sealed-trait
   field: Scala 2 types the un-annotated `val` while the other derivation is running. Give such vals an explicit

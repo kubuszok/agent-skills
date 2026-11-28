@@ -70,10 +70,21 @@ instance in scope (e.g. a `Person => Int` field derives `Cogen[Person]` itself).
 `derived` is not implicit - there is no import-and-forget auto mode; define instances for the types used in
 `forAll`.
 
-Also supported: Scala 3 enums, Java enums, `scala.Enumeration`, value classes and opaque types (via the underlying
+Also supported: literal types (`"foo"`, `42`; after 0.4.0, always their value, `Cogen` reseeds with `0L`), union types
+(Scala 3, after 0.4.0: a member picked with `Gen.oneOf`, `Cogen`/`Shrink` dispatch on the member; scalacheck-derived's
+extras imports `literal.scalacheck.given`, `union.scalacheck.given`, `union.shrink.given` are not needed), Scala 3
+enums, Java enums, `scala.Enumeration`, value classes and opaque types (via the underlying
 type), named tuples (Scala 3), refined / iron types (with the integration module), and any container with an
 `IsCollection` / `IsMap` provider (e.g. cats `NonEmptyList`, `NonEmptyMap`, `Chain` with `kindlings-cats-integration`):
 `Arbitrary` regenerates rejected (e.g. empty) candidates, `Shrink` never shrinks a non-empty container to an empty one.
+
+Value types with an `Either` smart constructor (refined, Iron, opaque types, custom `IsValueType` providers): a rejected
+candidate is regenerated up to 100 times, then `Gen.fail` (counted as discarded by `forAll`); rejected shrinks are
+dropped. 0.4.0 failed at runtime with `ClassCastException: scala.util.Right cannot be cast to ...` (fixed after 0.4.0;
+on 0.4.0 provide an `Arbitrary` for the wrapper yourself).
+
+A field instance given by a user `implicit def` is evaluated once, when the derived generator is built, not per sample
+(after 0.4.0).
 
 ## Recursion and size
 
@@ -104,9 +115,16 @@ or the `minSize`/`maxSize` test parameters. Collection and string sizes stay wit
 - Same `Cogen` seeds as ScalaCheck / upstream for products (`Cogen` of every field, then `Cogen[Unit]`); for sealed traits
   Kindlings perturbs with the subtype's `Cogen` and then its index (as scalacheck-derived; scalacheck-shapeless differs
   on Scala 2).
+- After 0.4.0, for the same seed `Arbitrary` generates exactly what ScalaCheck's own instances / scalacheck-derived
+  generate (case classes, sealed traits at size > 0, `Option` via `Gen.option` - also `Some` at size 0 -, `Either`,
+  `Try`, collections and maps up to `size` long, unions); only containers of recursive types halve the size. Nested
+  sealed traits are flattened (every leaf equally likely, diamonds counted once). 0.4.0 used `size / 2` for collections
+  and reduced the size for `Either`/`Try`, so properties may now see larger values. scalacheck-shapeless splits the size
+  among fields: snapshot-style tests migrated from it see different values.
 - At size 0 Kindlings still generates a value where scalacheck-derived may return `Gen.fail`.
 - Subtype order (affects sealed-trait `Cogen` seeds): Scala 3 declaration order, Scala 2 subtypes sorted by name.
 - No automatic mode (`import org.scalacheck.ScalacheckShapeless._`): call `.derived` explicitly.
+- Not ported: scalacheck-derived's `ArbitraryDeriving.buildSumGen`; `RecursionFallback` is not needed.
 
 Migration: drop `scalacheck-shapeless` / `scalacheck-derived` and their imports (`org.scalacheck.ScalacheckShapeless._`,
 `io.github.martinhh.derived.scalacheck.given`), add `import hearth.kindlings.scalacheckderivation.extensions._`,
@@ -123,6 +141,10 @@ define `implicit val arb: Arbitrary[A] = Arbitrary.derived[A]` (or `derives Arbi
   instances.
 - **`value derived is not a member of object org.scalacheck.Arbitrary`**: the `extensions` import is missing (or use
   `DeriveArbitrary.derived`).
+- **Scala 2, 0.4.0 only (fixed after 0.4.0)**: `Arbitrary` of a `scala.Enumeration` did not compile; sealed traits /
+  enums with more than 3 subtypes generated only the first 3.
+- **Scala 3: Java enum values in a different order between builds** (0.4.0: constants the compiled code refers to came
+  first) - fixed after 0.4.0, always declaration order.
 - **Sample is `None` sometimes for recursive types**: `.sample` can fail on a single draw; retry
   (`Iterator.continually(gen.sample).flatten.next()`) or use `forAll`.
 

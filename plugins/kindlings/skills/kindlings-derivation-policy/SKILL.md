@@ -52,8 +52,8 @@ Scala 3 splits one `-Xmacro-settings:a,b` option on commas and Scala 2 does not,
 
 ## How a location is decided
 
-Once per macro expansion, at the first type for which the macro would generate code instead of using an existing
-implicit:
+Once per macro expansion, at the first type that needs **structural** derivation (a case class / case object / sealed
+hierarchy / enum without an existing implicit):
 
 1. `always-allowed` -> allowed.
 2. `opt-in`: if any enclosing package / object / class of the expansion point matches an `allowedScopes` entry ->
@@ -65,17 +65,17 @@ implicit:
 The decision covers the whole recursive expansion: if the root is allowed, every nested case class / enum it reaches is
 derived too (recursion is not optional); if denied, nothing is generated.
 
-**Never gated**: using an instance that already exists in implicit scope (your `implicit val` / `given`, upstream
-built-ins such as circe's `Encoder[List[A]]`) and references to types already being derived in the same expansion.
-The user guide describes the policy as gating only product/sum derivation, with built-ins, collections, `Option`,
-value types and named tuples unconditional. In the 0.4.0 source, though, the single check sits right after the
-"use an existing implicit" rule and before every other rule, and the root type of `X.derived[T]` / an inline helper
-never goes through implicit search (the macro would find itself). So at a denied site **any** explicit derivation is
-rejected - also `KindlingsEncoder.derived[List[User]]` - while summoning the upstream type class
-(`Encoder[List[User]]`, `asJson`) works whenever the element instances exist. Inline helpers
-(`KindlingsEncoder.encode(x)`, `writeToString`, ...) derive too and are gated the same way. A Scala 3 `derives` clause
-expands in the type's companion, so the type's own package/companion must be allowed (or the file must import the
-marker).
+**Never gated**: instances already in implicit scope (your `implicit val` / `given`, upstream built-ins), references
+to types already being derived in the same expansion, and built-ins, collections/maps, `Option`, `Either`, value
+types/newtypes, tuples, named tuples. Their element types are gated only when they need structural derivation:
+at a denied site `KindlingsEncoder.derived[List[User]]` compiles when a `User` instance is in scope and is denied for
+`User` otherwise. Inline helpers (`KindlingsEncoder.encode(x)`, `writeToString`, ...) derive too and are gated the same
+way. A Scala 3 `derives` clause expands in the type's companion, so the type's own package/companion must be allowed
+(or the file must import the marker).
+
+0.4.0 differs (fixed after 0.4.0): the check ran before the built-in/collection rules, so at a denied site **any**
+explicit derivation was rejected - also `derived[List[User]]`, even `derived[List[Int]]`; summon the upstream type
+class there instead (`Encoder[List[User]]`, `asJson`).
 
 ## Opt-in markers
 
@@ -141,8 +141,8 @@ otherwise existing instances are accepted.
 
 **"Every nested type must have its own explicit instance"** - not what the policy does (nested types of an allowed
 derivation are derived inline). Define instances for the nested types explicitly (they are then used instead of being
-re-derived). cats-derivation additionally has an undocumented `hearth.kindlings.catsderivation.StrictDerivation`
-marker (`implicit val strict: StrictDerivation = StrictDerivation.instance`) that makes monomorphic cats derivations
+re-derived). cats-derivation additionally has a `hearth.kindlings.catsderivation.StrictDerivation`
+marker (documented in the cats-derivation guide) (`implicit val strict: StrictDerivation = StrictDerivation.instance`) that makes monomorphic cats derivations
 (Show, Eq, Order, Hash, Semigroup, Monoid, ...) fail when a field's instance would have to be derived; other modules
 have nothing equivalent.
 
@@ -184,5 +184,8 @@ Discussion: [issue #85](https://github.com/kubuszok/kindlings/issues/85); FAQ:
   package are denied when the settings also apply to test compilation. Add the marker import in tests (keep
   `optInByImport=true`), list the test package, or apply the settings to main sources only (sbt: `Compile /
   scalacOptions`, and check the build does not copy them into `Test`).
+- **`illegal cyclic reference involving value x` (2.13) / `Recursive value x needs type` (3)** for an untyped
+  `val x = X.derived[A]` or `val errors = compileErrors(...)` under an opt-in policy - 0.4.0 only (fixed after 0.4.0);
+  on 0.4.0 give the `val` an explicit type.
 - **Existing instance not used, derivation attempted instead** - the instance is not in implicit scope at that call
   site (e.g. defined in an unrelated object that is not imported). The policy error points at exactly these places.

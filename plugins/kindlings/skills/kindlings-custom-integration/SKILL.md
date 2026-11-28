@@ -26,7 +26,8 @@ Kindlings derivation (and every other Hearth-based macro) handle it, with no imp
 Version: written for Kindlings 0.4.0 (built on Hearth 0.4.5). Check the version in the user's build (`build.sbt` /
 `build.mill` / `project.scala` `//> using dep`); if it differs, prefer the docs for that version:
 <https://kindlings.readthedocs.io/en/0.4.0/custom-integrations/> (fall back to `en/latest`). The provider must be
-compiled against the Hearth version that the user's Kindlings version depends on.
+compiled against the Hearth version that the user's Kindlings version depends on (0.4.0: Hearth 0.4.5; the next
+Kindlings release: the Hearth release after 0.4.5).
 
 Provider mechanics in depth: `hearth-standard-extensions` (with its `writing-providers.md`) and
 `hearth-macro-extensions`. Existing integrations: `kindlings-integrations`.
@@ -230,9 +231,9 @@ provider. So:
 - **AnyVal smart constructor ignored, invalid values decode** -> the built-in AnyVal provider calls the constructor.
   Give your provider `priority` > 0, or provide implicits.
 - **`ClassCastException: scala.util.Right cannot be cast to ...` from `DeriveArbitrary.derived`** -> bug in
-  `kindlings-scalacheck-derivation` 0.4.0: for value types with a validating constructor (`Either...` `CtorLikeOf`,
-  also refined and Scala 3 opaque types with an `Either` smart constructor) the generator returns the `Either`
-  instead of the value. Provide an `Arbitrary` for the wrapper yourself.
+  `kindlings-scalacheck-derivation` 0.4.0 (fixed after 0.4.0): for value types with a validating constructor
+  (`Either...` `CtorLikeOf`, also refined and Scala 3 opaque types with an `Either` smart constructor) the generator
+  returns the `Either` instead of the value. On 0.4.0 provide an `Arbitrary` for the wrapper yourself.
 - **Other types suddenly derived through your provider, or broken generated code** -> `parse` returned `Matched` for
   types it cannot build. Match only your exact type, decline with `skippedLazily(reason)` (or `failed(throwable)`),
   and summon what construction needs inside `parse` (decline if missing) instead of failing later in a quote.

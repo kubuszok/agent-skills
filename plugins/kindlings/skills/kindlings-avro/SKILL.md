@@ -10,7 +10,7 @@ description: >-
   @avroSortPriority, @avroEnumDefault, @fieldName, @transientField). Use when replacing avro4s (SchemaFor, Encoder,
   Decoder, AvroSchema, @AvroName, ScalePrecision) with Kindlings, on schema-registry compatibility or schema
   evolution questions, BigDecimal/OffsetDateTime/tuple schema differences, "Method too large" for wide case classes
-  (issue 308), or avroDerivation timeouts.
+  (issue 308, fixed after 0.4.0), or avroDerivation timeouts.
 license: Apache-2.0
 metadata:
   library: kindlings
@@ -69,6 +69,7 @@ Scala 3: `case class Person(...) derives AvroEncoder, AvroDecoder` (also `AvroSc
 | `AvroEncoder.derived[A]` / `AvroEncoder.encode[A](a)` | `AvroEncoder[A]` (`encode(a): Any`, `.schema`) / `Any` |
 | `AvroDecoder.derived[A]` / `AvroDecoder.decode[A](v)` | `AvroDecoder[A]` (`decode(v: Any): A`, `.schema`) / `A` |
 | `AvroIO.toBinary`, `fromBinary`, `toJson`, `fromJson` | binary / Avro-JSON with the instance's own schema |
+| `AvroIO.toDataFile[A](values, codec)` / `fromDataFile[A](bytes)` (after 0.4.0) | Avro object container file (schema in the header; reading resolves the writer's schema) - avro4s' `AvroOutputStream.data` / `AvroInputStream.data` |
 
 `AvroEncoder` and `AvroDecoder` extend `AvroSchemaFor`. All derivations take an implicit/`using` `AvroConfig` (default
 `AvroConfig.default`); pass one with `derived[A](cfg)` (Scala 2) / `derived[A](using cfg)` (Scala 3). **Derive the
@@ -88,11 +89,12 @@ implicit val config: AvroConfig = AvroConfig.default
 | `namespace` (`None`: the package) | `withNamespace(ns)` | precedence: field `@avroNamespace` > type `@avroNamespace` > config > package |
 | `transformFieldNames` (`identity`) | `withSnakeCaseFieldNames`, `withKebabCaseFieldNames`, `withPascalCaseFieldNames`, `withTransformFieldNames(f)` | |
 | `transformConstructorNames` (`identity`) | `withTransformConstructorNames(f)` | sealed subtypes |
-| `decimalConfig` (**`None`: `BigDecimal` as STRING**) | `withDecimalConfig(precision, scale)` | BYTES + `decimal` logical type |
+| `decimalConfig` (**`None`: `BigDecimal` as STRING**) | `withDecimalConfig(precision, scale)`, after 0.4.0 also `withDecimalConfig(precision, scale, roundingMode)` | BYTES + `decimal` logical type |
+| `roundingMode` (after 0.4.0; `UNNECESSARY`: too many decimal places -> `ArithmeticException`) | `withRoundingMode(java.math.RoundingMode.HALF_UP)` | every decimal (`DecimalConfig` and `@avroScalePrecision` fields), also without a `DecimalConfig`; does not make a plain `BigDecimal` a decimal |
 | `instantPrecision` (`TimestampPrecision.Millis`) | `withInstantPrecision(TimestampPrecision.Micros)` | also `java.sql.Timestamp` |
 | `localDateTimePrecision` (`TimestampPrecision.Nanos`, as avro4s) | `withLocalDateTimePrecision(p)` | |
 | `offsetDateTimeAsIsoString` (**`false`: UTC `timestamp-millis` long**) | `withOffsetDateTimeAsIsoString` | avro4s: ISO-8601 string |
-| `scalaDefaultsInSchema` (`true`) | `withoutScalaDefaultsInSchema` / `withScalaDefaultsInSchema` | |
+| `scalaDefaultsInSchema` (`true`) | `withoutScalaDefaultsInSchema` / `withScalaDefaultsInSchema(enabled)` | |
 
 `AvroConfig.avro4sDefaults` switches every default-value difference to avro4s' behaviour (`BigDecimal` as
 `decimal(8, 2)`, `OffsetDateTime` as an ISO string); chain other builders on it.
@@ -104,9 +106,16 @@ Java enums are ENUMs, generic records are named `Name__A_B`.
 
 Key annotations (`import hearth.kindlings.avroderivation.annotations._`): `@avroName` (type), `@fieldName` (field),
 `@avroNamespace`, `@avroDoc`, `@avroAlias` / `@avroProp` (stackable), `@avroDefault("json")`, `@avroNoDefault`,
-`@transientField` (needs a default), `@avroFixed(size)`, `@avroScalePrecision(precision, scale)`,
-`@avroSortPriority(n: Int)`, `@avroEnumDefault("X")`, `@avroError`, `@avroErasedName`, `@avroFqnParamNames`. Details:
+`@transientField` (needs a default, or an `Option` without one -> `None`), `@avroFixed(size)`,
+`@avroScalePrecision(precision, scale[, roundingMode])`, `@avroSortPriority(n: Int)`, `@avroUnionPosition(n)`,
+`@avroEnumDefault("X")`, `@avroError`, `@avroErasedName`, `@avroFqnParamNames`; Java enums use the Java annotations
+`@AvroJavaName`, `@AvroJavaNamespace`, `@AvroJavaProp`, `@AvroJavaEnumDefault`. Details:
 [annotations-and-avro4s.md](annotations-and-avro4s.md).
+
+Decimal rounding (after 0.4.0): a value with more decimal places than the scale is rejected with `ArithmeticException`
+(`Rounding necessary`) unless a mode is set. Precedence: the field's `@avroScalePrecision(p, s, mode)` > the mode set
+last by `withRoundingMode` / `withDecimalConfig(p, s, mode)` > the `DecimalConfig`'s own > `UNNECESSARY` (as avro4s 4).
+A decimal with more digits than the precision is rejected when encoding.
 
 ## Defaults and schema evolution
 
@@ -137,7 +146,20 @@ schema evolution. Differences:
 | avro4s 5 gaps (recursive types, value classes, `Enumeration`, `FieldMapper`) | unsupported on 5.x | supported | - |
 | `@avroScalePrecision` parameter order | avro4s 5: `(scale, precision)` | `(precision, scale)` | swap arguments |
 | `@avroSortPriority` type | `Float` | `Int` | - |
+| Namespace of a type in the empty package | avro4s 5: none; avro4s 4: `empty` (records) / `<empty>` (enums, invalid Avro) | none on both Scala versions (0.4.0 on Scala 2: `<empty>`) | `@avroNamespace` |
 | Shapeless `Coproduct` UNIONs, avro4s-cats/-refined/-kafka | yes | not ported (use Kindlings integration modules) | - |
+
+Kindlings follows **avro4s 4** where 4 and 5 differ (after 0.4.0): no rounding by default, `@avroProp` values are plain
+Strings (no JSON parsing: `@avroProp("n", "1")` is the String `"1"`), a sealed trait with one subtype stays a UNION, a
+`null` Boolean decodes as `false`. avro4s' decimal-string schema default and avro4s 4's dropped `None` defaults are
+avro4s bugs; Kindlings writes `None` as `null` (null branch first) and decimal defaults as bytes.
+
+After 0.4.0 also as avro4s: a field-level `@avroNamespace` moves every named type below the field (deep); a sealed
+trait's `@avroNamespace` is inherited by subtypes without their own; `@avroName` on case objects renames ENUM symbols
+and an annotated type argument renames generic records; `@avroFixed` on `String` fields and value classes (padded);
+`@avroDoc` on value classes; `Utf8` / `CharSequence` fields; lenient decoder inputs (but a `String` no longer decodes
+from e.g. an `Integer` via `toString`); `scala.Enumeration` symbols in id order (0.4.0 on Scala 2: by name);
+timestamps outside the long range throw `ArithmeticException`; `private val` constructor fields are encoded.
 
 On Scala 2, ENUM symbols and subtype order follow names (Scala 2 class files keep no declaration order); on Scala 3
 the declaration order.
@@ -154,11 +176,16 @@ and check tuples (renamed records) - otherwise the new schemas may be incompatib
 
 ## Gotchas
 
-- **`Method too large: ...decode_<Type>$macro...` (issue #308, open in 0.4.0)** - the `AvroDecoder` of a case class
-  with ~88+ fields **with default values** exceeds the JVM's 64 KB method limit; from ~26 defaulted fields the decoder
-  method is also too big to be JIT-compiled (runs interpreted). Workarounds until a fixed release: group fields into
-  nested case classes (changes the schema), hand-write the decoder for that type, or stay on 0.3.2 for that module.
-  Fields without defaults are not affected.
+- **`Method too large: ...decode_<Type>$macro...` (issue #308, 0.4.0 only, fixed after 0.4.0)** - the `AvroDecoder`
+  of a case class with ~88+ fields **with default values** exceeds the JVM's 64 KB method limit (from ~26 defaulted
+  fields it is too big to be JIT-compiled). On 0.4.0: group fields into nested case classes (changes the schema) or
+  hand-write the decoder for that type.
+- A field instance given by a user `implicit def` is evaluated once per derived encoder/decoder, not per call (after
+  0.4.0).
+- **`ArithmeticException: Rounding necessary`** (after 0.4.0) - a `BigDecimal` has more decimal places than the scale;
+  set `withRoundingMode(...)` or `@avroScalePrecision(p, s, mode)`. Migrating from avro4s 4's implicit `RoundingMode`:
+  `AvroConfig.default.withRoundingMode(mode)`.
+- **"Not in union" encoding below a field `@avroNamespace`** - fixed after 0.4.0.
 - **Schema differs between writer and reader** - encoder and decoder derived with different `AvroConfig`s or
   annotations; derive both with the same config.
 - **`BigDecimal` written as a string** - Kindlings default; set `withDecimalConfig` or `@avroScalePrecision`.

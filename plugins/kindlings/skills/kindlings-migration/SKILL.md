@@ -102,9 +102,10 @@ Dependency: `kittens` -> `kindlings-cats-derivation`. Imports: `cats.derived.*` 
 | `import cats.derived.auto.show._` | `import hearth.kindlings.catsderivation.auto.show._` (Scala 3: `auto.show.given`); Scala 2 has `show, eq, order, partialOrder, hash, semigroup, monoid, empty`, Scala 3 also `functor, contravariant, foldable, traverse` |
 | `cats.derived.ShowPretty` | `hearth.kindlings.catsderivation.ShowPretty` |
 
-Differences: zero-field types render as `Name()` in `Show`; `ConsK` for list-like sealed traits is not supported; a
-wrapped field whose type constructor is another case class (e.g. `middle: Nel[A]`) needs that instance in scope. See
-the `kindlings-cats` skill and [differences.md](differences.md#kittens).
+Differences: zero-field types render as `Name()` in `Show`. In 0.4.0 also `ConsK` for list-like sealed traits was not
+supported and a wrapped field whose type constructor is another case class (e.g. `middle: Nel[A]`) needed that
+instance in scope; both work after 0.4.0 (like kittens), as do nested/recursive `Bifunctor`/`Bifoldable`/`Bitraverse`
+fields. See the `kindlings-cats` skill and [differences.md](differences.md#kittens).
 
 ## avro4s
 
@@ -119,10 +120,15 @@ Dependency: `avro4s-core` -> `kindlings-avro-derivation` (JVM only). Import `hea
 | `@AvroSortPriority(1.0f)` | `@avroSortPriority(1)` (`Int`) |
 | `ScalePrecision` / `@AvroScalePrecision(scale, precision)` | `AvroConfig.withDecimalConfig(precision, scale)` / `@avroScalePrecision(precision, scale)` - note the argument order |
 | `FieldMapper(SnakeCase)` | `AvroConfig.default.withSnakeCaseFieldNames` |
+| implicit `RoundingMode` (avro4s 4) | `AvroConfig.default.withRoundingMode(mode)` (after 0.4.0; no `DecimalConfig` needed when all decimals are `@avroScalePrecision` fields) |
+| `AvroOutputStream.data` / `AvroInputStream.data` | `AvroIO.toDataFile` / `AvroIO.fromDataFile` (after 0.4.0) |
+| `@AvroUnionPosition`, Java-enum annotations | `@avroUnionPosition`, `@AvroJavaName` & co. (after 0.4.0) |
 
 Defaults differ: `BigDecimal` is a STRING (avro4s: `decimal(8, 2)` bytes) and `OffsetDateTime` a `timestamp-millis`
 long (avro4s: ISO string) - **`AvroConfig.avro4sDefaults`** restores avro4s' behaviour. Tuple record names include type
-arguments. Details: [differences.md](differences.md#avro4s).
+arguments. Where avro4s 4 and 5 differ Kindlings follows **avro4s 4** (after 0.4.0: no decimal rounding by default -
+`ArithmeticException` -, `@avroProp` values are plain Strings, a one-subtype sealed trait stays a UNION). Details:
+[differences.md](differences.md#avro4s).
 
 ## pureconfig (pureconfig-generic / pureconfig-generic-scala3)
 
@@ -140,7 +146,9 @@ Dependency: drop `pureconfig-generic*` (keep `pureconfig-core`), add `kindlings-
 
 **Upstream `ProductHint` / `CoproductHint` implicits are ignored** - convert each to `KindlingsProductHint` /
 `KindlingsCoproductHint`. Defaults match upstream (kebab-case keys, `type` discriminator, defaults used, unknown keys
-allowed). Keep using `pureconfig.ConfigSource`. Details: [differences.md](differences.md#pureconfig).
+allowed). Keep using `pureconfig.ConfigSource`. Tuples are lists, as upstream (after 0.4.0; on Scala 3 also tuples
+beyond 22 elements, `*:` and `EmptyTuple`, so pureconfig-generic-scala3 users need no change). Details:
+[differences.md](differences.md#pureconfig).
 
 ## tapir (`Schema.derived`, `sttp.tapir.generic.auto`)
 
@@ -161,7 +169,11 @@ decoder, not tapir's "Option and collections are optional" rule. See the `kindli
 
 `derives YamlCodec` / `YamlEncoder` / `YamlDecoder` -> `derives KindlingsYamlCodec` / `KindlingsYamlEncoder` /
 `KindlingsYamlDecoder` (Scala 3), or `KindlingsYamlCodec.derived[A]` (works on Scala 2.13 too); keep `asYaml` /
-`as[A]`. Since 0.4.0 the defaults match scala-yaml (untagged sealed traits, constructor defaults used). See
+`as[A]`. Since 0.4.0 the defaults match scala-yaml (untagged sealed traits, constructor defaults used). After 0.4.0
+map keys use key codecs (`YamlKeyDecoder[K]` / `YamlKeyEncoder[K]`): scala-yaml's `forMap` uses `YamlDecoder[K]` /
+`YamlEncoder[K]` for keys, so code relying on a custom `YamlDecoder[K]` changing scalar keys (`String`, numbers,
+`UUID`, enums, value types) must provide a key codec instead; enum keys work (case names). Fail-fast decoding stops at
+the first failing field/item (scala-yaml decodes all, reports the first); `withAccumulatingErrors` reports all. See
 `kindlings-yaml`.
 
 ## scalacheck-shapeless / scalacheck-derived
@@ -169,7 +181,10 @@ decoder, not tapir's "Option and collections are optional" rule. See the `kindli
 Remove `import org.scalacheck.ScalacheckShapeless._` (or scalacheck-derived's imports). Use
 `implicit val arb: Arbitrary[A] = DeriveArbitrary.derived[A]` (also `DeriveShrink`, `DeriveCogen`), or
 `Arbitrary.derived[A]` / Scala 3 `derives Arbitrary` with `import hearth.kindlings.scalacheckderivation.extensions._`.
-No `Recursive[T]` / `RecursionFallback` needed. See `kindlings-scalacheck`.
+No `Recursive[T]` / `RecursionFallback` needed; scalacheck-derived's extras imports (`literal.scalacheck.given`,
+`union.scalacheck.given`, `union.shrink.given`) are not needed (after 0.4.0). After 0.4.0 the same seed generates the
+same values as ScalaCheck / scalacheck-derived; scalacheck-shapeless splits the size among fields, so snapshot-style
+tests migrated from it see different values. See `kindlings-scalacheck`.
 
 ## cats-tagless
 
@@ -181,9 +196,10 @@ in a companion `implicit val`; no macro annotations, no `@experimental`. See `ki
 
 | Upstream | Kindlings | Notes |
 |---|---|---|
-| `import com.softwaremill.macwire._`; `wire`, `wireSet`, `wireList`, `wireWith`, `wireRec`, `autowire` | `import hearth.kindlings.di._` (or `DI.wire[...]`); same names; `@Module` is `hearth.kindlings.di.Module`; tagging stays `com.softwaremill.tagging._` | no request/session proxy scopes; only the closest enclosing method's parameters; local vals only on Scala 2; macwire-cats `autowire` (`Resource[IO, _]`) -> `DICats.wireResource[F, A](...)` in `kindlings-di-cats`. See `kindlings-di`. |
+| `import com.softwaremill.macwire._`; `wire`, `wireSet`, `wireList`, `wireWith`, `wireRec`, `autowire` | `import hearth.kindlings.di._` (or `DI.wire[...]`); same names; `@Module` is `hearth.kindlings.di.Module`; tagging stays `com.softwaremill.tagging._` | no request/session proxy scopes; only the closest enclosing method's parameters; local vals only on Scala 2; macwire-cats `autowire` (`Resource[IO, _]`) -> `DICats.wireResource[F, A](...)` in `kindlings-di-cats`; after 0.4.0 `@Inject` constructors and `autowire(classOf[Impl])` migrate as is and declared members rank before inherited ones as in macwire; Scala 2: annotate members holding `wire` (`val c: C = wire[C]`). See `kindlings-di`. |
+| jsoniter-scala-circe `JsoniterScalaCodec.jsonCodec(...)` (circe `Json` via jsoniter) | `kindlings-jsoniter-json`: `JsonCodec.jsonCodec(...)` with the same parameter names, no `initialSize` (after 0.4.0) | Kindlings' own `Json` AST, not circe's. See `kindlings-jsoniter`. |
 | ScalaMock `extends MockFactory`, `mock[T]`, `stub[T]`, `(m.f _).expects(x).returning(y)` | `import hearth.kindlings.mock._, hearth.kindlings.mock.syntax._`; `with MockSuite` + `withExpectations { ... }` or `implicit val ctx: MockContext = new MockContext` + `ctx.verifyExpectations()`; `Mock.mock[T]`, `Mock.stub[T]`, same `.expects(...).returning(...)` | no reflection/bytecode, works on JS/Native; framework-agnostic. See `kindlings-mock`. |
-| `import com.softwaremill.quicklens._`; `obj.modify(_.a.b).setTo(x)`, `.each`, `.at`, `.when[T]`, `modifyAll`, `modifyLens` | `import hearth.kindlings.optics._`; the same names | use the `obj.modify(path)` extension form; product-like classes with a hand-written `copy` are not supported; `.index(-1)` is a no-op on Scala 2 (quicklens 2 throws). See `kindlings-optics`. |
+| `import com.softwaremill.quicklens._`; `obj.modify(_.a.b).setTo(x)`, `.each`, `.at`, `.when[T]`, `modifyAll`, `modifyLens` | `import hearth.kindlings.optics._`; the same names | classes with a hand-written `copy` work after 0.4.0 (not in 0.4.0); not supported: opaque-type extension `copy`, literal-typed focuses, `QuicklensFunctor` (write a Hearth provider); `.index(-1)` is a no-op on Scala 2 (quicklens 2 throws). See `kindlings-optics`. |
 
 ## Migrating between Kindlings versions
 
@@ -197,6 +213,10 @@ Summary (full list in [upgrading.md](upgrading.md)):
 - **-> 0.4.0**: **not binary compatible** with 0.3.x (recompile everything, all Kindlings artifacts on one version,
   Hearth 0.4.5+); old-arity config constructors/`copy` removed; wire/schema changes in avro, yaml, tapir, pureconfig,
   sconfig, scalacheck, cats and Scala 2 sealed-subtype ordering.
+- **0.4.0 -> next release**: binary compatible (MiMa-checked), but behaviour/wire changes after recompiling: `private
+  val` fields now encoded, generic user instances used for circe/jsoniter nested fields, tuples as HOCON lists, xml
+  annotations implemented, yaml map keys and fail-fast lists, avro4s-4 parity, tapir annotation inheritance, Scala 3
+  Java enum declaration order, larger scalacheck values, quicklens `modifyAll` semantics.
 
 ## Gotchas
 

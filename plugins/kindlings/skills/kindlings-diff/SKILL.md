@@ -80,6 +80,8 @@ implicit val tolerant: Diff[Double] = Diff.approximate(0.001)             // |l 
 ```
 
 `ignoreField` works on the top-level record (or a sealed-trait variant's body), by field name; it is not path-based.
+`modifyField(name).using(diff)` replaces the comparison of that field with `diff` (same scope; fixed after 0.4.0, where
+it was silently ignored).
 `Diff.approximate[T: Numeric](epsilon)` in implicit scope is picked up for every `T` field of derived types.
 
 ## Rendering
@@ -117,21 +119,24 @@ fields. Cats collections (`NonEmptyList`, ...) work with `kindlings-cats-integra
 
 ## Gotchas
 
-- **`modifyField(name).using(otherDiff)` has no effect in 0.4.0** (the replacement diff is stored but not applied).
-  Instead put an implicit `Diff[FieldType]` in scope before deriving, or use `ignoreField`.
+- **`modifyField(name).using(otherDiff)` has no effect in 0.4.0** (fixed after 0.4.0). On 0.4.0 put an implicit
+  `Diff[FieldType]` in scope before deriving, or use `ignoreField`.
 - **`ignoreField` on a nested field does nothing**: it only applies to the fields of the instance it is called on.
   Derive and ignore on the nested type's instance and keep it implicit while deriving the outer type.
 - **Floating-point noise reported as changes**: provide `implicit val d: Diff[Double] = Diff.approximate(eps)` where
   the outer `Diff` is derived.
-- **ANSI escape codes in CI logs / assertion messages**: render with `RenderConfig.plain`.
+- **ANSI escape codes in CI logs / assertion messages**: render with `RenderConfig.plain`. 0.4.0's `Diff.seqDiff`
+  element names still contained ANSI codes under `RenderConfig.plain`, and nested entries of sequences/maps/sets were
+  not indented under their `+`/`-` marker (both fixed after 0.4.0).
+- **Values differing only in a `private val` constructor field reported identical** (0.4.0) - such fields are compared
+  after 0.4.0 (as difflicious / diffx).
 - **`Diff.derived` inferred as `Nothing`/`Any`** (error "type parameter was inferred as ..."): pass the type explicitly.
 
 ## Debugging, timeouts, policy
 
 - Settings namespace: `diffDerivation`.
-- Log one derivation: `import hearth.kindlings.diffderivation.debug._` (`logDerivationForDiffDerivation`). The scalac
-  option `-Xmacro-settings:diffDerivation.logDerivation=true` mentioned in the user guide is not read by 0.4.0 - use
-  the import.
+- Log one derivation: `import hearth.kindlings.diffderivation.debug._` (`logDerivationForDiffDerivation`), or the
+  whole module: `-Xmacro-settings:diffDerivation.logDerivation=true` (ignored by 0.4.0, read after 0.4.0).
 - Timeout (default 5 s): `-Xmacro-settings:diffDerivation.timeout=30s`.
 - Opt-in policy marker: `import hearth.kindlings.diffderivation.policy._` (`allowDerivationForDiffDerivation`).
 

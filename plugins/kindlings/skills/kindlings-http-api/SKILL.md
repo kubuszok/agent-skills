@@ -219,8 +219,9 @@ Full table (neotype, newtype, cats non-empty collections): `kindlings-integratio
 - **`Multiple JSON library configurations found: circe, jsoniter-scala.`** - both Kindlings JSON modules are on the
   classpath; usually circe codecs + `kindlings-tapir-openapi-jsoniter` (which depends on
   `kindlings-jsoniter-derivation`). Add `PreferSchemaConfig[hearth.kindlings.circederivation.Configuration]` (or
-  `...jsoniterderivation.JsoniterConfig`). The error's own hint prints `PreferSchemaConfig[circeConfig]` /
-  `PreferSchemaConfig()`, which does not compile - write the real type and `PreferSchemaConfig[T]`.
+  `...jsoniterderivation.JsoniterConfig`), or `-Xmacro-settings:tapirSchemaDerivation.preferConfig=circe`; the error
+  prints both verbatim (0.4.0's hint printed a non-compiling `PreferSchemaConfig[circeConfig]` /
+  `PreferSchemaConfig()`; fixed after 0.4.0).
 - **`"field":null` for `None` while the schema has the field optional but not nullable** (strict validators and
   generated clients reject it) - jsoniter: `withTransientNone`; circe: `TapirJsonCirce` with `jsonPrinter` using
   `dropNullValues = true` (plain `asJson.noSpaces` elsewhere still prints nulls).

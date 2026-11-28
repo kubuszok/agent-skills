@@ -32,7 +32,13 @@ writeToString(Json.obj("ok" -> Json.True, "xs" -> Json.arr(Json.fromInt(1))))
   fromBigInt/fromString/fromBoolean/fromValues/fromJsonObject`, `Json.obj(...)`, `Json.arr(...)`, `Json.True/False`;
   `isX` / `asX` (returning `Option`) and `fold(onNull, onBoolean, onNumber, onString, onArray, onObject)`.
 - `JsonNumber`: `toInt`, `toLong`, `toBigInt`, `toBigDecimal`, `toDouble`, `toFloat` all return `Option`;
-  `JsonNumber.fromString` accepts only valid JSON numbers.
+  `JsonNumber.fromString` accepts only valid JSON numbers. After 0.4.0 it keeps what it was made from (`Long`, `Float`,
+  `Double`, `BigDecimal` or text, like circe's); `value` / `toString` is the text and equality is by text
+  (`fromInt(1) == fromString("1").get`, `!= fromString("1.0").get`). No longer a case class, but `case JsonNumber(text)`,
+  `copy` and `Product` members still work.
+- Numbers are read exactly, up to 307 digits and a scale below 6178 (longer: `value exceeds limit for number of
+  digits` / `for scale`). Up to 0.4.x parsed numbers were rounded to 34 significant digits. A token that starts no JSON
+  value reports `expected JSON value` (0.4.0: `illegal number`).
 - `JsonObject`: ordered fields; `apply(key)`, `add`, `remove`, `mapValues`, `keys`, `values`, `toMap`,
   `JsonObject.empty`, `JsonObject.fromIterable`.
 - Optics: `JsonPath.root.field(..).index(..)` with `get`/`set`/`modify`; `JsonOptic.field/index/each` composed with
@@ -41,6 +47,14 @@ writeToString(Json.obj("ok" -> Json.True, "xs" -> Json.arr(Json.fromInt(1))))
   jsoniter-scala-circe; `JsonCodec.withMaxDepth(n)` for another limit). To use `Json` as a field of a derived case
   class, import `hearth.kindlings.jsoniterjson.codec.JsonCodec._` where the Kindlings codec is derived (it is not in
   `Json`'s companion). Note the object name clashes with jsoniter-scala's `JsonCodec` trait; import it qualified.
+- After 0.4.0: `JsonCodec.jsonCodec(maxDepth, doSerialize, numberParser, numberSerializer, sortKeys)` - the options of
+  jsoniter-scala-circe's `JsoniterScalaCodec.jsonCodec` (same names, no `initialSize`; all optional, defaults behave
+  like `jsonValueCodec`). `doSerialize = json => !json.isNull` drops null fields; `JsonCodec.numberParser(mc,
+  scaleLimit, digitsLimit)` rounds with a `MathContext`; `JsonCodec.jsCompatibleNumberSerializer` writes as strings
+  integers outside `[-2^52, 2^52)` and decimals with more than 52 bits or a scale outside `[-256, 256]` (numbers made
+  from `Double`/`Float` always as numbers); `sortKeys = true` sorts object fields (duplicates keep their order).
+  `JsonCodec.withMaxDepth(n)` is `jsonCodec(maxDepth = n)`. Migrating from jsoniter-scala-circe:
+  `JsoniterScalaCodec.jsonCodec(...)` -> `JsonCodec.jsonCodec(...)`.
 
 Differences from circe's `Json` (by design): duplicate keys are kept (`apply` returns the last value, `add` appends);
 equality is structural (numbers by text, objects by ordered fields); `toDouble`/`toFloat` return `Option`;

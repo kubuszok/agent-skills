@@ -88,20 +88,23 @@ bounded. To parse many records, make the start symbol a repetition (or split the
 ### Push machine (integrations, REPLs)
 
 ```scala
-import hearth.kindlings.parser.internal.runtime.Machine // status constants live here in 0.4.0
+import hearth.kindlings.parser.MachineStatus
 
 val m = parser.pushMachine()
 m.feed("1 2 ")
 m.feed("3")
 m.endOfInput()
-m.run(budget = 4096) match {               // returns an Int status
-  case Machine.Done      => m.result       // Any: cast to R
-  case Machine.Error     => throw m.error  // ParseError
-  case Machine.Effect    => /* run m.pendingEffect (an F[_]), then m.resume(value) and run again */
-  case Machine.NeedInput => /* feed more (or endOfInput()) and run again */
-  case Machine.Yield     => /* budget spent: run again later */
+m.run(budget = 4096) match {                     // returns an Int status
+  case MachineStatus.Done      => m.result       // Any: cast to R
+  case MachineStatus.Error     => throw m.error  // ParseError
+  case MachineStatus.Effect    => /* run m.pendingEffect (an F[_]), then m.resume(value) and run again */
+  case MachineStatus.NeedInput => /* feed more (or endOfInput()) and run again */
+  case MachineStatus.Yield     => /* budget spent: run again later */
 }
 ```
+
+`MachineStatus` is public after 0.4.0; on 0.4.0 use the same constants from
+`hearth.kindlings.parser.internal.runtime.Machine` (still works).
 
 The engines and fs2 pipes are built on this machine.
 

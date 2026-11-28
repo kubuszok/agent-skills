@@ -60,7 +60,8 @@ Extras: `kindlings-jsoniter-json` (small JSON AST + codec for jsoniter) and `kin
 Platforms: everything is published for Scala 2.13 and 3 on JVM, Scala.js and Scala Native, except:
 
 - **JVM only**: `kindlings-avro-derivation`, `kindlings-pureconfig-derivation`, `kindlings-newtype-integration`.
-- **JVM + Scala.js only**: `kindlings-di-cats`, `kindlings-tapir-openapi-jsoniter`.
+- **JVM + Scala.js only**: `kindlings-tapir-openapi-jsoniter` (and `kindlings-di-cats` in 0.4.0; Scala Native after
+  0.4.0).
 - **Scala 3 only**: `kindlings-iron-integration`, `kindlings-neotype-integration`.
 
 0.4.0 is built with Scala 2.13.18 and Scala 3.8.4. Scala 3 projects need a Scala 3.8+ compiler (an older compiler
@@ -169,6 +170,11 @@ Before deriving any nested type, the macro searches implicit scope for an existi
 leaf instances (`Instant`, `UUID` formats, newtypes without an integration) in the type's companion or in scope at the
 derivation site. Configure per-field details with the module's annotations (e.g. `@fieldName`, `@transientField`;
 circe/jsoniter/... skills list them).
+
+A **generic** user instance (`implicit def enc[A: Encoder]: Encoder[Page[A]]`) for a field type whose argument has no
+instance yet (`Page[Item]`, `Item` to be derived): on 0.4.0 it was silently skipped and the field derived structurally;
+after 0.4.0 circe and jsoniter derive `Item`'s instance and use yours (other modules: put
+`implicit val item: Encoder[Item] = ...derived[Item]` in scope first).
 
 ### Generic types (`Box[A]`)
 

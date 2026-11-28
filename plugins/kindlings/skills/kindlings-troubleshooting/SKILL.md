@@ -49,6 +49,10 @@ Enable debug logging with: import hearth.kindlings.circederivation.debug.logDeri
 | `ambiguous implicit values` | upstream automatic derivation (`io.circe.generic.auto._`, `pureconfig.generic.auto._`, `sttp.tapir.generic.auto._`, `cats.derived.*`...) also in scope | remove the upstream import; see `kindlings-getting-started` |
 | `could not find implicit value ... io.circe.Encoder[A]` at an upstream call (`asJson`, `writeToString`, `ConfigSource.load`) | upstream searches for its own type class, whose implicit scope does not contain Kindlings' `derived` | define `implicit val` / `given` / `derives` for that root type |
 | `value derive is not a member of ...` | `derive` was removed in 0.2.0 | use `derived` |
+| `X is not sealed, not an enumeration, and not a union type` (Scala 3) for a JDK / dependency Java enum | 0.4.0: the compiler knows a class-file Java enum's constants only once the module refers to one | fixed after 0.4.0; on 0.4.0 refer to every constant somewhere (`val _ = List(AccessMode.READ, AccessMode.WRITE, AccessMode.EXECUTE)`) |
+| `The implicit search for X failed because the macro expansion of a candidate crashed (...)` (after 0.4.0) | an implicit macro (yours or a library's) threw while Kindlings searched for `X`; the message contains the exception | fix the macro or provide `X` as a value; Kindlings no longer silently derives `X` structurally |
+| `No YamlKeyDecoder[K] for the map's keys: ...` (after 0.4.0) | yaml map key type with no key codec | provide a `YamlKeyDecoder[K]` / `YamlKeyEncoder[K]`, or a `YamlDecoder[K]` for a complex key - see `kindlings-yaml` |
+| `@xmlAttribute needs a single text value`, `next to @xmlContent the other fields have to be attributes`, `@xmlUnwrapped needs a collection or a map`, `... cannot be combined`, `more than one field with @xmlWrapper` (after 0.4.0) | xml annotations that cannot work | see `kindlings-xml` |
 
 Errors are reported at the expansion site with Kindlings' own wording, never `diverging implicit expansion` or
 `could not find Lazy implicit`. If the message is unclear, turn on debug logging - with logging enabled the logs are
@@ -86,8 +90,8 @@ Timeout and derivation-policy keys live under the module's namespace; `logDeriva
 | cats-derivation | `catsDerivation` | `catsDerivation.logDerivation=true` | `catsderivation.debug._` |
 | cats-tagless-derivation | `catsTaglessDerivation` | `catsTaglessDerivation.logDerivation=true` | `catstaglessderivation.debug._` |
 | scalacheck-derivation | `scalacheckDerivation` | `scalacheckDerivation.logDerivation=true` | `scalacheckderivation.debug._` |
-| diff-derivation | `diffDerivation` | none (import only) | `diffderivation.debug._` |
-| fast-show-pretty | `fastShowPrettyDerivation` | `fastShowPretty.logDerivation=true` (note: different namespace) | `fastshowpretty.debug._` |
+| diff-derivation | `diffDerivation` | `diffDerivation.logDerivation=true` (0.4.0: import only) | `diffderivation.debug._` |
+| fast-show-pretty | `fastShowPrettyDerivation` | `fastShowPrettyDerivation.logDerivation=true` (0.4.0: only `fastShowPretty.logDerivation=true`, still accepted) | `fastshowpretty.debug._` |
 | di / di-cats | - | `di.logGeneration=true` / `diCats.logGeneration=true`; wiring graph `di.logWiring=tree` or `=mermaid` (`diCats.logWiring`) | `di.debug._` / `dicats.debug._` |
 | mock | - | `mock.logGeneration=true` | `mock.debug._` |
 | optics | - | `optics.logGeneration=true` | `optics.debug._` |
@@ -167,19 +171,29 @@ Look for repeated implicit searches and rules evaluated for the same type many t
 
 ## Gotchas
 
-- **Settings appear to be ignored** - wrong namespace (fast-show-pretty: timeout/policy under
-  `fastShowPrettyDerivation`, logging under `fastShowPretty`), several settings joined with commas (see above), or the
-  build tool not forwarding options. Use the 1ms canary.
-- **`Method too large: ...decode_X$macro$1`** - the JVM's 64 KB method limit. Known open issue
+- **Settings appear to be ignored** - wrong namespace (fast-show-pretty 0.4.0: logging only under `fastShowPretty`;
+  diff 0.4.0: no global logging key), several settings joined with commas (see above), or the build tool not
+  forwarding options. Use the 1ms canary.
+- **`Method too large: ...decode_X$macro$1`** - the JVM's 64 KB method limit.
   [#308](https://github.com/kubuszok/kindlings/issues/308): `AvroDecoder` for a case class with 88+ defaulted fields
-  fails on 0.4.0 (compiled on 0.3.2). No fix in 0.4.0. Workarounds: write that one instance by hand, or split the
-  record into nested case classes (this changes the Avro schema). Kindlings modules must all be on the same version, so
-  downgrading only the Avro module is not an option.
-- **`HearthAssertionError: ... MIO timeout is already set — you are re-entering runToExprOrFail`** - reproduced on
-  Scala 2.13 with Kindlings 0.4.0 / Hearth 0.4.5 when a `val` holding a derived instance has **no explicit type**
+  fails on 0.4.0 (fixed after 0.4.0; wide decoders of other modules were also shrunk below the JIT limit). On 0.4.0:
+  write that one instance by hand, or split the record into nested case classes (this changes the Avro schema).
+  Kindlings modules must all be on the same version, so downgrading only the Avro module is not an option.
+- **`HearthAssertionError: ... MIO timeout is already set — you are re-entering runToExprOrFail`** (Hearth bug, fixed
+  after 0.4.0) - Scala 2.13, when a `val` holding a derived instance has **no explicit type**
   (`implicit val codec = KindlingsJsonValueCodec.derived[A]`) and the same file derives a type with a sealed-trait
-  field. Fix: always annotate the type of vals/defs holding derived instances
+  field. On 0.4.0: annotate the type of vals/defs holding derived instances
   (`implicit val codec: JsonValueCodec[A] = ...`).
+- **`assertion failed: missing outer accessor in class X`** (Scala 3 compiler crash, Hearth bug, fixed after 0.4.0) - a
+  sealed trait declared inside a class (test suite, `.sc` script) whose case objects live in its companion. On 0.4.0:
+  declare the hierarchy at the top level or in an `object`.
+- **`Internal error: unable to find the outer accessor symbol of class X`** (Scala 2.13, Hearth bug, not fixed) - the
+  same shape (sealed trait declared inside a class, case object in the trait's companion) with a **decoder or codec**;
+  encoders are not affected. Declare the hierarchy at the top level or in an `object`, or put the case object next to
+  the trait instead of in its companion.
+- **Error text with `\u001b[35m`-style codes** (raw `compileErrors` string, IDE problem view) - 0.4.0 on Scala 2.13
+  coloured type names in derivation errors; fixed after 0.4.0 (debug logs keep colours). On 0.4.0 strip
+  `\u001b\[[0-9;]*m` before comparing.
 - **NullPointerException / `null` instance at runtime** - with 0.1.x `derive` the macro could pick up the very
   `implicit val` being defined (issue #119, tapir `implicit val s: Schema[A] = KindlingsSchema.derive[A]`); use
   `derived` (0.2.0+; tapir: `KindlingsSchema.derived[A].schema`). Instances in different objects that refer to each
@@ -194,6 +208,29 @@ Look for repeated implicit searches and rules evaluated for the same type many t
 - **Kindlings 0.4.0 needs Hearth 0.4.5+** on the compile classpath - do not force an older `com.kubuszok::hearth`
   with `dependencyOverrides`; and do not mix Kindlings artifacts of different versions (0.4.0 is not binary compatible
   with 0.3.x).
+- **xml 0.4.0 bugs** (fixed after 0.4.0, wire format changes): `XmlConfig.withEnumAsStrings` had no effect;
+  `@xmlWrapper` was ignored; `@xmlAttribute` on a non-text field wrote its `toString`. See `kindlings-xml`.
+- **My generic instance is ignored, the field is derived structurally** - 0.4.0 skipped a user
+  `implicit def enc[A](implicit a: Encoder[A]): Encoder[Page[A]]` when `Encoder[Item]` had to be derived. Fixed after
+  0.4.0 for circe and jsoniter (dependencies that are type arguments of the field type are derived and passed). On
+  0.4.0, for other modules, or for uncovered shapes (another type class such as `Encoder.AsObject[A]`, types that are
+  not type arguments), put the nested instance in scope as a value first.
+- **"MIO timeout is already set" through a library's own auto-derivation entry point** (e.g. `inline implicit def
+  auto[A]: Exported[Encoder[A]] = Exported(KindlingsEncoder.derived[A])`) found while Kindlings searches a field
+  instance - 0.4.0 treated the failure as "not found" and derived structurally; fixed by the Hearth version in the next
+  release.
+- **Tuple written as a list / `Expected type OBJECT. Found LIST` after upgrading** (pureconfig, sconfig) - tuples are
+  HOCON lists after 0.4.0, as upstream; the old object form is still read. See `kindlings-pureconfig`.
+- **`ArithmeticException: Rounding necessary`** (avro after 0.4.0) - set `AvroConfig.withRoundingMode(...)`.
+- **A collection field built as an unexpected implementation** - `mutable.Map[K, mutable.ListMap[..]]` becomes a
+  `ListMap` (Scala's implicit search prefers the element companion's factory), in every module that builds
+  collections. Declare the concrete type (`mutable.HashMap[..]`). Documented difference, not a bug.
+- **Known gaps (Hearth bugs, not fixed)**: case classes **with default values** nested in a trait
+  (`trait T { case class U(a: Int = 1) }; object T extends T`) fail after expansion (`missing outer accessor` /
+  `unable to find the outer accessor symbol`) - move them to an `object`; Java enums nested in a Java class
+  (`Thread.State`) on Scala 3; on Scala 2 a field name starting or ending with a space (jsoniter).
+- **OpenAPI document changed after upgrading past 0.4.0** - tapir schemas inherit annotations from sealed parents,
+  `@encodedName` on a type renames the component. See `kindlings-tapir-schema`.
 - **Integration not picked up** - integration jars are discovered via the compile classpath of the module where the
   derivation expands; `% Test`-scoped or added only to a downstream module, they are invisible. See
   `kindlings-integrations`.
@@ -215,6 +252,29 @@ Look for repeated implicit searches and rules evaluated for the same type many t
 | Scala 2: derivation failed when a member named `scala`, `java`, `cats`, `io`, `sttp`... was in scope | - | 0.4.0 |
 | scalacheck: `Arbitrary` for recursive sealed traits overflowed the stack | - | 0.4.0 |
 | a derivation error with a `null` message crashed the macro with an NPE | - | 0.4.0 |
+| avro: `Method too large` for `AvroDecoder` of 88+ defaulted fields | #308 | after 0.4.0 |
+| derivation error messages contained ANSI colour codes (Scala 2.13) | - | after 0.4.0 |
+| policy: opt-in mode also gated collections/`Option`/value types (`derived[List[User]]` denied); untyped `val x = X.derived[A]` failed with "illegal cyclic reference" / "Recursive value needs type" | - | after 0.4.0 |
+| diff: `modifyField(name).using(d)` ignored; `diffDerivation.logDerivation` not read; ANSI codes in plain `seqDiff` names | - | after 0.4.0 |
+| fast-show-pretty: `fastShowPrettyDerivation.logDerivation` not read | - | after 0.4.0 |
+| xml: absent `Option`/collection elements failed; empty `String` failed with `MissingContent`; `Option` attributes written as `Some(v)` (also with a runtime config); `withAttributesByDefault` output did not decode (`MissingElement`); `String`s trimmed; runtime-config encoder of a wide case class ran the compiler out of memory | - | after 0.4.0 |
+| scalacheck: `ClassCastException: scala.util.Right cannot be cast to ...` for `Either` smart-constructor value types | - | after 0.4.0 |
+| cats: `Functor.derived` for recursive case classes (`found Tree[W2], required Tree[Any]`); `ConsK` `ClassCastException` for a non-`List` tail | - | after 0.4.0 |
+| circe (Scala 3): `KindlingsCodecAsObject.derive` lacked `enumAsStrings` | - | after 0.4.0 |
+| di: unused members of `autowireMembersOf(module)` reported as errors (garbled message) | - | after 0.4.0 |
+| avro (Scala 2): `<empty>` namespace for types in the empty package | - | after 0.4.0 |
+| tapir: the "Multiple JSON library configurations" hint printed non-compiling code | - | after 0.4.0 |
+| Scala 3: `X is not sealed, not an enumeration, and not a union type` for a JDK enum none of whose constants is referred to; Java enum constants in completion order (cats `Order`, tapir, generators changed between builds) | - | after 0.4.0 |
+| `private val` constructor fields left out (circe, pureconfig, sconfig, xml, fast-show-pretty, cats `Show`/`Eq`/`Order`/`Hash`, diff) or cats `Semigroup`/`Monoid`/`Functor`/`Traverse` not derivable | - | after 0.4.0 |
+| circe/jsoniter: a user generic instance needing a derived dependency silently ignored | - | after 0.4.0 |
+| jsoniter-json: parsed numbers rounded to 34 significant digits | - | after 0.4.0 |
+| xml: `withEnumAsStrings` no effect, `@xmlWrapper`/`@xmlUnwrapped` ignored, `@xmlAttribute` wrote `toString`, `withNoDiscriminator` / nested sealed output did not decode | - | after 0.4.0 |
+| avro: "Not in union" encoding below a field `@avroNamespace`; `private val` fields written into wrong positions | - | after 0.4.0 |
+| cats: `ClassCastException` from Bi*/`Foldable`/`Traverse` with nested or recursive fields; Scala 2 `EmptyK.derived` "is never used" under `-Werror` | - | after 0.4.0 |
+| cats-tagless: `depends on the type constructor parameter but is not a direct application of it` for `Kleisli[F, A, B]`-like case-class algebra fields | - | after 0.4.0 |
+| scalacheck (Scala 2): `Enumeration` `Arbitrary` did not compile; sealed traits with > 3 subtypes generated only the first 3 | - | after 0.4.0 |
+| mock: strict mock of a trait with an abstract `val` threw "Unexpected call" on construction | - | after 0.4.0 |
+| optics: `.eachWhere` predicate capturing local values crashed scalac 2 | - | after 0.4.0 |
 
 Upgrading across 0.3.4 and 0.4.0 changes several wire formats - read `kindlings-migration` before upgrading.
 

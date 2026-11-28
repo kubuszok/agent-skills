@@ -132,10 +132,20 @@ derivation policy instead (`kindlings-derivation-policy`).
 - Zero-field case classes and case objects render as `Name()` in `Show` (kittens 3: `Name`; kittens 2: `Name$()`).
 - `reduceRightTo` is lazier: later fields are not evaluated when the function short-circuits.
 - Apply/Applicative for recursive types (rose tree) work; kittens' instances overflow the stack.
-- A wrapped field whose type constructor is another case class to derive (`middle: Nel[A]`) needs that class's instance
-  in scope (`implicit val r: Reducible[Nel] = Reducible.derived[Nel]`); kittens derives it recursively.
-- `ConsK`: case classes with head + tail shape (`Nel[A](head: A, tail: List[A])`); kittens 2's list-like sealed traits
-  (`IList` with `Cons`/`Nil`) are **not** supported.
+- A wrapped field whose type constructor is another case class (`middle: Nel[A]`) is derived recursively after 0.4.0,
+  like kittens; 0.4.0 needed its instance in scope (`implicit val r: Reducible[Nel] = Reducible.derived[Nel]`).
+- `ConsK`: case classes with head + tail shape (`Nel[A](head: A, tail: List[A])`); after 0.4.0 also kittens 2's
+  list-like sealed traits (`IList` with `ICons`/`INil`) and case classes prepending to a nested collection.
+- After 0.4.0: `Bifunctor`/`Bifoldable`/`Bitraverse` support fields nesting the type parameters (`List[E]`,
+  `Either[A, E]`, another data type) and recursive types, like kittens 3; `Functor`/`Foldable`/`Traverse` support
+  recursion through another type constructor (`rest: Option[AtLeastOne[A]]`); `Empty` derives for
+  `Recursive(i: Int, is: Option[Recursive])` and recursive sealed traits (their nil case); derived polymorphic instances
+  are `Serializable`; kittens' discipline law suites pass on derived instances. In 0.4.0 these shapes threw
+  `ClassCastException` at runtime (Bi*/Functor/Foldable/Traverse) or did not compile (`Empty`).
+- `private val` constructor fields are shown / compared / combined (after 0.4.0, as kittens); 0.4.0 ignored them in
+  `Show`/`Eq`/`Order`/`Hash` and failed to derive `Semigroup`/`Monoid`/`Functor`/`Traverse` & co. for such classes.
+- Scala 3: a Java enum's `Order` follows the constants' declaration order (after 0.4.0; before, constants referred to
+  in the compiled code came first, so it could change between builds).
 - Not ported: kittens `cats.sequence` / `lift` / `replicateH` (shapeless HList utilities), `MkIterable`.
 - Scala 3 subtype order is declaration order; on Scala 2 subtypes are ordered by name (affects `Order` across
   subtypes). Kittens on Scala 2 sorts by full name - differs only for numbered names (`Item2` vs `Item10`).
@@ -156,15 +166,22 @@ derivation policy instead (`kindlings-derivation-policy`).
 - **Ambiguous `derived`** when kittens' `cats.derived._` / `cats.derived.*` and Kindlings' extensions are both
   imported - remove the kittens import (and the kittens dependency).
 - **Polymorphic derivation fails for a field `G[A]`**: `Functor`/`Traverse`/`Apply`/... need an instance for every
-  wrapping `G` (e.g. `Traverse[Option]` from cats, or your derived instance for your own `G`).
+  wrapping `G` (e.g. `Traverse[Option]` from cats); on 0.4.0 also for your own case class `G` (derived recursively
+  after 0.4.0).
+- **`ClassCastException` from a derived `Bifunctor`/`Bifoldable`/`Bitraverse`/`Foldable`/`Traverse`** of a type with
+  nested or recursive fields - 0.4.0 only (applied the function to the whole field), fixed after 0.4.0.
+- **Scala 2 `-Werror`: "is never used" at an `EmptyK.derived` site** - fixed after 0.4.0.
 - **Reducible / NonEmptyTraverse rejected**: at least one field must never be empty (the `A` itself, or wrapped in a
   `Reducible` type).
 - **NonEmptyAlternative / Alternative rejected**: every field must wrap `A` in a (NonEmpty)Alternative type; a bare `A`
   field is not allowed.
 - **`Functor.derived` on a case class recursive through a container** (`Tree[A](value: A, children: List[Tree[A]])`)
-  fails in 0.4.0 with `type mismatch; found: Tree[...CatsDerivationFactories.W2] required: Tree[Any]` (Scala 2 and 3).
-  Workaround: derive `Traverse` (or `Foldable`) instead - `Traverse.derived[Tree]` works and is a `Functor`. Recursive
-  sealed traits (`IList[A]`) are fine.
+  fails in 0.4.0 with `type mismatch; found: Tree[...CatsDerivationFactories.W2] required: Tree[Any]` (Scala 2 and 3;
+  fixed after 0.4.0). On 0.4.0 derive `Traverse` instead - `Traverse.derived[Tree]` works and is a `Functor`.
+- **`ConsK.derived` throws `ClassCastException`** when the nested tail uses a type constructor other than `List` (e.g.
+  with a custom `ConsK` instance) - 0.4.0 only, fixed after 0.4.0.
+- A field instance given by a user `implicit def` is evaluated once per derived instance, not per call (after 0.4.0,
+  also for nested/composed instances of polymorphic type classes).
 - **Scala 3 enum `Eq`/`Order` with `-Werror`**: older versions emitted "unchecked type test" warnings; fixed in 0.3.2.
 
 ## Debugging, timeouts, policy

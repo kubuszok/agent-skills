@@ -156,7 +156,9 @@ any other type gets `null`. Provide your own: `implicit val d: Defaultable[Money
 
 ## What can be mocked
 
-Traits and (non-final) classes; abstract `def`s and abstract `val`s are overridden, concrete members are kept as-is.
+Traits and (non-final) classes; abstract `def`s and abstract `lazy val`s are mocked, concrete members are kept as-is.
+Abstract (eager) `val`s are overridden with their `Defaultable` default in both `mock` and `stub`, not mocked (after
+0.4.0; in 0.4.0 a strict mock threw `Unexpected call` while being constructed).
 Supported shapes include overloads, curried parameter lists (args are flattened: `ctx.expecting("curried", 10, 1.5)`),
 varargs (arrive as one `Seq`), by-name params, implicit/using params (packed like normal args), polymorphic methods,
 `this.type` returns, symbolic names, parameterized traits applied at the use site, and on Scala 3 union/intersection,
@@ -170,8 +172,10 @@ opaque and context-function types. Mocking a **class** runs its real constructor
   `withExpectations` replace ScalaMock's automatic per-test verification.
 - `ArgMatcher.any` instead of ScalaMock's `*` wildcard; `ArgMatcher.epsilon` instead of `~`; ordering via
   `ctx.inSequence`/`ctx.inAnyOrder`.
-- No `mockFunction`/`stubFunction`.
-- Only abstract members are mocked; concrete members keep their implementation.
+- Not ported: `mockFunction`/`stubFunction` (use `Mock.mock[A => B]`), the call log, the new `stubs` API, the ZIO /
+  cats-effect integrations, Java proxy mocks.
+- Members typed with an inner type of the mocked trait are not supported (Hearth limitation).
+- Only abstract members are mocked; concrete members keep their implementation (ScalaMock mocks them too).
 - Results are untyped (`returning(value: Any)`): a wrong-typed value compiles and fails at the call with a
   `ClassCastException`.
 

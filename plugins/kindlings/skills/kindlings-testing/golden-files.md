@@ -68,5 +68,5 @@ class AvroGoldenSuite extends munit.FunSuite {
 `AvroSchemaFor.schemaOf[ItemAdded].toString` gives
 `{"type":"record","name":"ItemAdded","namespace":"shop.events","fields":[...,{"name":"note","type":["null","string"],"default":null}]}`
 on both Scala versions. Use `toString` (the `toString(Boolean)` overload is deprecated in Avro 1.12). Types in the
-empty package get `"namespace":"`<empty>`"` on Scala 2.13 and no namespace on Scala 3 (0.4.0) - one more reason to
-keep models in packages and run goldens on every Scala version.
+empty package get no namespace (0.4.0 on Scala 2.13: `"namespace":"`<empty>`"`) - one more reason to keep models in
+packages and run goldens on every Scala version.
