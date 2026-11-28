@@ -171,6 +171,11 @@ leaf instances (`Instant`, `UUID` formats, newtypes without an integration) in t
 derivation site. Configure per-field details with the module's annotations (e.g. `@fieldName`, `@transientField`;
 circe/jsoniter/... skills list them).
 
+A **generic** user instance (`implicit def enc[A: Encoder]: Encoder[Page[A]]`) for a field type whose argument has no
+instance yet (`Page[Item]`, `Item` to be derived): on 0.4.0 it was silently skipped and the field derived structurally;
+after 0.4.0 circe and jsoniter derive `Item`'s instance and use yours (other modules: put
+`implicit val item: Encoder[Item] = ...derived[Item]` in scope first).
+
 ### Generic types (`Box[A]`)
 
 On Scala 3, `case class Box[A](a: A) derives KindlingsEncoder` makes the compiler require a `KindlingsEncoder[A]` for
