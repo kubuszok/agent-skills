@@ -79,9 +79,9 @@ p.modify(_.age).setTo(31)
 | `_.field` | case class; sealed trait / Scala 3 `enum` whose field is declared on the parent | descend into the field (for a sealed parent the macro matches every case) |
 | `.each` | any collection, `Option`, `Map` (values), `Array`, Java collections, anything with a Hearth `IsCollection`/`IsMap`/`IsOption` provider | every element |
 | `.eachWhere(p)` | same as `.each` | elements matching `p` |
-| `.at(i)` | `Seq` (Int index), `Map` (key) | element; `IndexOutOfBoundsException` / `NoSuchElementException` if absent |
-| `.index(i)` | `Seq`, `Map` | element; no-op if absent |
-| `.atOrElse(i, d)` | `Seq`, `Map` | element; if absent, appends `f(d)` (Seq) or inserts `key -> f(d)` (Map) |
+| `.at(i)` | `Seq` (Int index; after 0.4.0 any `Seq`, mutable included, and `Array`), `Map` (key) | element; `IndexOutOfBoundsException` (`ArrayIndexOutOfBoundsException` for arrays) / `NoSuchElementException` if absent |
+| `.index(i)` | `Seq`, `Array`, `Map` | element; no-op if absent |
+| `.atOrElse(i, d)` | `Seq`, `Array`, `Map` | element; if absent, appends `f(d)` (Seq) or inserts `key -> f(d)` (Map); `d` is by-name after 0.4.0 (`???` allowed) |
 | `.at` / `.index` / `.atOrElse(d)` | `Option` (no index) | the value; `.at` on `None` throws `NoSuchElementException` |
 | `.eachLeft` / `.eachRight` | `Either` | the `Left` / `Right` value; no-op on the other side |
 | `.when[Sub]` | sealed hierarchy | narrow to subtype `Sub`; other subtypes unchanged |
@@ -97,6 +97,9 @@ config.modify(_.servers.each.ports.eachWhere(_ < 1024)).using(_ + 8000)
 
 ### Several paths and reusable lenses
 
+After 0.4.0 `.at`/`.index`/`.atOrElse` on Scala `Seq`s, `Array`s and immutable `Map`s update in place through `updated`,
+like quicklens (O(log n) for `Vector`/`Map`).
+
 ```scala
 names.modifyAll(_.first, _.third).using(_.toUpperCase)   // same focus type; shared prefixes rebuilt with one copy
 box.modifyAll(_.xs.each, _.name).using(_.toUpperCase)
@@ -109,6 +112,11 @@ val toStreet  = modifyLens[Address](a => a.street)
 val toStreetOfPerson = toAddress.andThenModify(toStreet)  // PathLazyModify[Person, Street]
 toStreetOfPerson.setTo(Street("Elm"))(p)
 ```
+
+`modifyAll` (after 0.4.0, as quicklens) builds a path tree: paths sharing an `.each` / `.eachLeft` / `.eachRight` /
+`.when[T]` traverse it once, and overlapping paths are applied in the order written (0.4.0 applied each path to the
+original value independently - results of overlapping paths can differ). Also after 0.4.0: `modify(obj)(path)` /
+`modifyAll(obj)(paths)` spellings on Scala 2 too, and `andThenModify` on `T => PathModify[T, U]`.
 
 ### Cats non-empty collections
 
@@ -130,9 +138,11 @@ optics-specific extension point.
 - `.when[Sub]` and common sealed fields also work for Scala 3 `enum`s.
 - `.index(i)` with a **negative** index is a no-op on both Scala versions (quicklens for Scala 2 throws
   `IndexOutOfBoundsException`).
-- Not supported: descending into a class that is neither a case class nor a sealed hierarchy (e.g. a hand-written
-  class with its own `copy`). quicklens' functor-based extension (`QuicklensFunctor` etc.) is replaced by Hearth
-  providers.
+- Supported after 0.4.0: hand-written classes with their own `copy`, case classes with an implicit second parameter
+  list, intersection (`A with B` / `A & B`) and self types, `.eachWhere` predicates capturing local values (crashed
+  scalac 2 in 0.4.0).
+- Not supported: Scala 3 extension-method `copy`/accessors (opaque types), literal-typed focuses, user-defined
+  `QuicklensFunctor` (write a Hearth `IsCollection`/`IsMap` provider instead).
 
 ## Debugging
 
@@ -149,8 +159,9 @@ the generated code. No derivation timeout or derivation policy applies. For gene
   `modifyLens` to reuse a path.
 - **`` `modify` expects a field-access path ... but got an unsupported step ``** - only field selections and the steps
   above are allowed (no method calls such as `.head`, `.get`, `.apply(0)`); use `.at(0)`, `.at` on `Option`, etc.
-- **`can only descend a field into a case class or a sealed hierarchy/enum`** - the type is a plain class; make it a
-  case class or update it manually.
+- **`can only descend a field into a case class or a sealed hierarchy/enum`** (after 0.4.0: `... or a class with a
+  copy method taking that field`) - a plain class without a usable `copy` (0.4.0: any non-case class); give it a
+  `copy` method, make it a case class or update it manually.
 - **`` `modify`: no accessible field `x` on [T] ``** - only case-class constructor fields can be updated (not a `val` in
   the class body or a `def`). For a field declared on a sealed parent, every case must have it as a constructor
   field; otherwise use `.when[Case].x`.
